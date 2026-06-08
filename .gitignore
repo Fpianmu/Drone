@@ -1,0 +1,15 @@
+# 编译产物
+*.exe
+*.o
+*.obj
+
+# IDE 配置
+.vscode/
+.idea/
+
+# Claude Code
+.claude/
+
+# 系统文件
+Thumbs.db
+Desktop.ini
