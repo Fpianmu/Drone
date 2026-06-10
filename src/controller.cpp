@@ -111,20 +111,53 @@ void controller_run(Controller* ctrl)
     // 显示欢迎界面
     graphics_show_welcome();
 
-    // 设置初始位置：活跃无人机随机散布，休眠无人机放角落
+    // 设置初始位置：活跃无人机随机散布（保证最小间距，防止重叠）
+    int placed = 0;
+    Point2f placed_pos[MAX_DRONE_COUNT];
     for (int i = 0; i < ctrl->drone_count; i++) {
-        if (ctrl->fleet[i]->is_active) {
-            float rx = (float)(rand() % (STAGE_COLS - 4) + 2);
-            float ry = (float)(rand() % (STAGE_ROWS - 4) + 2);
-            drone_set_position(ctrl->fleet[i], rx, ry, 50.0f);
-        } else {
-            // 休眠无人机放在舞台外
+        if (!ctrl->fleet[i]->is_active) {
             drone_set_position(ctrl->fleet[i], -10.0f, -10.0f, 0.0f);
+            continue;
         }
+        // 尝试在舞台上找一个不与其他飞机重叠的位置（最多试50次）
+        int tries = 0;
+        float rx = 0, ry = 0;
+        int ok = 0;
+        while (tries < 50) {
+            rx = (float)(rand() % (STAGE_COLS - 6) + 3);
+            ry = (float)(rand() % (STAGE_ROWS - 6) + 3);
+            ok = 1;
+            for (int j = 0; j < placed; j++) {
+                if (DISTANCE(rx, ry, placed_pos[j].x, placed_pos[j].y) < 2.0f) {
+                    ok = 0; break;  // 太近了，换一个位置
+                }
+            }
+            if (ok) break;
+            tries++;
+        }
+        placed_pos[placed].x = rx;
+        placed_pos[placed].y = ry;
+        placed++;
+        drone_set_position(ctrl->fleet[i], rx, ry, 50.0f);
     }
 
     // 初始化轨迹：从当前位置 → 圆形编队（仅活跃无人机）
     ctrl_init_default_formation(ctrl);
+
+    // 确保编队内没有完全重合的无人机（微调偏移）
+    for (int i = 0; i < ctrl->current_formation->drone_count; i++) {
+        for (int j = i + 1; j < ctrl->current_formation->drone_count; j++) {
+            float dx = ctrl->current_formation->targets[i].x
+                     - ctrl->current_formation->targets[j].x;
+            float dy = ctrl->current_formation->targets[i].y
+                     - ctrl->current_formation->targets[j].y;
+            if (dx * dx + dy * dy < 0.01f) {  // 距离<0.1=重合
+                ctrl->current_formation->targets[j].x += 0.5f;
+                ctrl->current_formation->targets[j].y += 0.5f;
+            }
+        }
+    }
+
     traj_from_formation(ctrl->fleet,
                         ctrl->current_formation->drone_count,
                         ctrl->current_formation, ctrl->trajectories,
