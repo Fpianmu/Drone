@@ -1,35 +1,34 @@
-/**
- * @file    formation.cpp
- * @brief   编队与图案生成模块实现
- * @author  [你的名字]
- * @date    2026-06-08
+/*
+ * formation.cpp —— 编队与图案生成模块实现
  *
- * 每种图案类型的生成算法：
- *   圆形 —— 等角度分布在圆周上
- *   正方形 —— 等间距分布在外框上
- *   三角形 —— 均匀分布在三条边上
- *   菱形 —— 四条边等间距
- *   五角星 —— 10个顶点（外5 + 内5），按需分配
- *   正五边形/六边形 —— 等间距分布在边上
- *   心形 —— 参数方程 (x = 16sin³t, y = 13cost - 5cos2t - 2cos3t - cos4t)
- *   螺旋线 —— 阿基米德螺旋 r = a * θ
- *   直线 —— 等间距横排
- *   箭头 —— 箭身直线 + 箭尾三角形
- *   十字 —— 横竖两条线
- *   弧形 —— 等角度分布在圆弧上
- *   网格 —— row * col 矩形网格
- *   随机 —— 随机坐标
+ * 包含 15 种几何图案的生成算法，以及用 GDI 渲染文字的点阵编队生成器。
+ *
+ * 图案生成算法一览：
+ *   圆形     —— 等角度分布在圆周上（参数方程）
+ *   正方形   —— 四边等距排列
+ *   三角形   —— 三边等距排列
+ *   菱形     —— 四边等距排列
+ *   五角星   —— 10 个顶点（外圈 5 个 + 内圈 5 个），黄金比例 0.382
+ *   五边/六边  —— 等距分布在边上
+ *   心形     —— 心形参数方程
+ *   螺旋线   —— 阿基米德螺旋 r = aθ
+ *   直线     —— 水平等距
+ *   箭头     —— 箭身 + 三角形箭头
+ *   十字     —— 横竖两条
+ *   弧形     —— 等角度分布在弧上
+ *   网格     —— rows × cols 矩形
+ *   随机     —— 伪随机散布
+ *   文字     —— Windows GDI 渲染 → 降采样为二值点阵
  */
 
 #include "../include/formation.h"
 
-/* ==================== 几何工具函数 ==================== */
-
-/**
- * @brief 绕中心点旋转坐标（二维旋转矩阵）
+/*
+ * 绕中心点旋转坐标（二维旋转矩阵）
  *
- *   x' = cx + (x-cx)*cos(θ) - (y-cy)*sin(θ)
- *   y' = cy + (x-cx)*sin(θ) + (y-cy)*cos(θ)
+ * 公式：x' = cx + (x-cx)·cosθ - (y-cy)·sinθ
+ *       y' = cy + (x-cx)·sinθ + (y-cy)·cosθ
+ * 所有图案生成完后都会经过这个函数做旋转。
  */
 void rotate_point(float cx, float cy, float x, float y, float deg,
                   float* out_x, float* out_y)
@@ -45,19 +44,21 @@ void rotate_point(float cx, float cy, float x, float y, float deg,
     *out_y = cy + dx * sinA + dy * cosA;
 }
 
-/* ==================== 图案生成器实现 ==================== */
+/*
+ * 图案生成器 —— 每种图案一个函数，输入几何参数 + 飞机数量，输出坐标数组
+ *
+ * 所有生成器遵循相同的调用约定：
+ *   center: 图案中心
+ *   size:   含义因图案而异（圆=半径，正方=边长……）
+ *   count:  飞机数量
+ *   out:    输出坐标数组，调用者保证长度 ≥ count
+ *   返回:   实际填充的坐标数（通常 = count）
+ */
 
-/**
- * @brief 生成圆形编队
- *
- * 无人机等角度分布在圆周上。
- * 圆的参数方程：x = cx + R*cos(θ), y = cy + R*sin(θ)
- *
- * @param center  圆心
- * @param radius  半径
- * @param count   无人机数量
- * @param out     输出位置数组
- * @return 生成的位置数量
+/*
+ * 圆形：等角度分布在圆周上
+ * 圆的参数方程 x = cx + R·cosθ, y = cy + R·sinθ
+ * 角度步长 = 360° / count，保证均匀分布
  */
 int gen_circle(Point2f center, float radius, int count, Point2f out[])
 {
@@ -74,17 +75,10 @@ int gen_circle(Point2f center, float radius, int count, Point2f out[])
     return count;
 }
 
-/**
- * @brief 生成正方形编队
- *
- * 无人机等间距分布在正方形四条边上。
- * 周长 = 4 * side, 步长 = 周长 / count
- *
- * @param center  正方形中心
- * @param side    边长
- * @param count   无人机数量
- * @param out     输出位置数组
- * @return 生成的位置数量
+/*
+ * 正方形：四边等距分布
+ * 周长 = 4 × side，步长 = 周长 ÷ count
+ * 按距离确定在四条边中的哪一条（上 → 右 → 下 → 左）
  */
 int gen_square(Point2f center, float side, int count, Point2f out[])
 {
@@ -120,17 +114,9 @@ int gen_square(Point2f center, float side, int count, Point2f out[])
     return count;
 }
 
-/**
- * @brief 生成正三角形编队
- *
- * 无人机均匀分布在三条边上。
- * 底边水平，顶点在上。
- *
- * @param center  三角形重心
- * @param size    边长
- * @param count   无人机数量
- * @param out     输出位置数组
- * @return 生成的位置数量
+/*
+ * 正三角形：三边等距分布，顶点在上
+ * 重心在 center，高 = side × √3/2
  */
 int gen_triangle(Point2f center, float size, int count, Point2f out[])
 {
@@ -180,17 +166,8 @@ int gen_triangle(Point2f center, float size, int count, Point2f out[])
     return count;
 }
 
-/**
- * @brief 生成菱形编队
- *
- * 菱形 = 上下左右四个顶点，四条边等分。
- * 对角线一横一竖。
- *
- * @param center  菱形中心
- * @param size    对角线长度
- * @param count   无人机数量
- * @param out     输出位置数组
- * @return 生成的位置数量
+/*
+ * 菱形：四条边等距分布，水平对角线 = size，垂直 = size×0.7
  */
 int gen_diamond(Point2f center, float size, int count, Point2f out[])
 {
@@ -231,18 +208,9 @@ int gen_diamond(Point2f center, float size, int count, Point2f out[])
     return count;
 }
 
-/**
- * @brief 生成五角星编队
- *
- * 五角星有 10 个顶点（外圈5个 + 内圈5个交替排列）。
- * 外圈半径 R，内圈半径 r ≈ 0.382R。
- * 根据 count 数量分配无人机到这10个顶点及连接边上。
- *
- * @param center  星形中心
- * @param size    外接圆半径
- * @param count   无人机数量
- * @param out     输出位置数组
- * @return 生成的位置数量
+/*
+ * 五角星：10 顶点（外 5 + 内 5 交替），内圈半径 ≈ 外圈 × 0.382（黄金比例）
+ * 无人机分配到 10 条边上
  */
 int gen_star(Point2f center, float size, int count, Point2f out[])
 {
@@ -286,13 +254,8 @@ int gen_star(Point2f center, float size, int count, Point2f out[])
     return count;
 }
 
-/**
- * @brief 生成正五边形编队
- * @param center  中心
- * @param size    外接圆半径
- * @param count   无人机数量
- * @param out     输出位置数组
- * @return 生成的位置数量
+/*
+ * 正五边形：5 顶点，72° 间隔
  */
 int gen_pentagon(Point2f center, float size, int count, Point2f out[])
 {
@@ -329,13 +292,8 @@ int gen_pentagon(Point2f center, float size, int count, Point2f out[])
     return count;
 }
 
-/**
- * @brief 生成正六边形编队
- * @param center  中心
- * @param size    外接圆半径
- * @param count   无人机数量
- * @param out     输出位置数组
- * @return 生成的位置数量
+/*
+ * 正六边形：6 顶点，60° 间隔
  */
 int gen_hexagon(Point2f center, float size, int count, Point2f out[])
 {
@@ -370,19 +328,10 @@ int gen_hexagon(Point2f center, float size, int count, Point2f out[])
     return count;
 }
 
-/**
- * @brief 生成心形编队
- *
- * 使用心形参数方程：
- *   x = 16 * sin³(t)
- *   y = 13*cos(t) - 5*cos(2t) - 2*cos(3t) - cos(4t)
- * 其中 t ∈ [0, 2π]
- *
- * @param center  心形中心
- * @param size    大小缩放
- * @param count   无人机数量
- * @param out     输出位置数组
- * @return 生成的位置数量
+/*
+ * 心形：参数方程
+ * x = 16sin³t, y = 13cost - 5cos2t - 2cos3t - cos4t
+ * t ∈ [0, 2π]，等距采样 count 个点
  */
 int gen_heart(Point2f center, float size, int count, Point2f out[])
 {
@@ -410,17 +359,9 @@ int gen_heart(Point2f center, float size, int count, Point2f out[])
     return count;
 }
 
-/**
- * @brief 生成螺旋编队（阿基米德螺旋）
- *
- * 极坐标方程：r = a + b * θ
- * 转回笛卡尔坐标：x = r*cos(θ), y = r*sin(θ)
- *
- * @param center  螺旋中心
- * @param size    总展开范围
- * @param count   无人机数量
- * @param out     输出位置数组
- * @return 生成的数量
+/*
+ * 阿基米德螺旋：极坐标 r = a + bθ, 笛卡尔 x = r·cosθ, y = r·sinθ
+ * 3 圈展开，半径从 0 线性增长到 size
  */
 int gen_spiral(Point2f center, float size, int count, Point2f out[])
 {
@@ -442,13 +383,8 @@ int gen_spiral(Point2f center, float size, int count, Point2f out[])
     return count;
 }
 
-/**
- * @brief 生成直线编队（水平排列）
- * @param center  中心
- * @param length  直线长度
- * @param count   无人机数量
- * @param out     输出位置数组
- * @return 生成的数量
+/*
+ * 直线：水平等距排列，长度 = size
  */
 int gen_line(Point2f center, float length, int count, Point2f out[])
 {
@@ -465,17 +401,8 @@ int gen_line(Point2f center, float length, int count, Point2f out[])
     return count;
 }
 
-/**
- * @brief 生成箭头编队
- *
- * 箭身 + 三角形箭头。结合直线和三角形。
- * 箭头尖端指向右侧。
- *
- * @param center  中心
- * @param size    总长度
- * @param count   数量
- * @param out     输出
- * @return 数量
+/*
+ * 箭头：箭身（直线，70% 飞机） + 三角箭头（30% 飞机），尖端朝右
  */
 int gen_arrow(Point2f center, float size, int count, Point2f out[])
 {
@@ -527,16 +454,8 @@ int gen_arrow(Point2f center, float size, int count, Point2f out[])
     return count;
 }
 
-/**
- * @brief 生成十字编队
- *
- * 竖直和水平两条线在中心交叉。
- *
- * @param center  中心
- * @param size    臂长
- * @param count   数量
- * @param out     输出
- * @return 数量
+/*
+ * 十字：竖线 + 横线在中心交叉，各占一半飞机
  */
 int gen_cross(Point2f center, float size, int count, Point2f out[])
 {
@@ -569,13 +488,8 @@ int gen_cross(Point2f center, float size, int count, Point2f out[])
     return count;
 }
 
-/**
- * @brief 生成弧形编队
- * @param center     中心
- * @param radius     半径
- * @param count      数量
- * @param out        输出
- * @return 数量
+/*
+ * 弧形：半个圆多一点（-150° 到 +150°），等角度分布
  */
 int gen_arc(Point2f center, float radius, int count, Point2f out[])
 {
@@ -595,16 +509,8 @@ int gen_arc(Point2f center, float radius, int count, Point2f out[])
     return count;
 }
 
-/**
- * @brief 生成网格编队
- *
- * 自动计算最接近的 rows × cols 布局。
- *
- * @param center  网格中心
- * @param size    网格边长
- * @param count   数量
- * @param out     输出
- * @return 数量
+/*
+ * 网格：自动计算最接近正方形的 rows × cols 布局
  */
 int gen_grid(Point2f center, float size, int count, Point2f out[])
 {
@@ -632,16 +538,8 @@ int gen_grid(Point2f center, float size, int count, Point2f out[])
     return count;
 }
 
-/**
- * @brief 生成随机散布编队
- *
- * 无人机在指定范围内随机分布，通常用作过渡状态。
- *
- * @param center  散布中心
- * @param size    散布范围
- * @param count   数量
- * @param out     输出
- * @return 数量
+/*
+ * 随机散布：在 size×size 范围内伪随机分布
  */
 int gen_random(Point2f center, float size, int count, Point2f out[])
 {
@@ -658,150 +556,29 @@ int gen_random(Point2f center, float size, int count, Point2f out[])
     return count;
 }
 
-/* ==================== 文字点阵生成器 ==================== */
+/* ==================== 文字编队生成器（GDI 渲染） ==================== */
 
 /**
- * @brief 5×7 点阵字库
+ * @brief 使用 Windows GDI 将文字渲染为位图，降采样生成无人机编队
  *
- * 每个字符用 7 个字节表示（每行一个字节，bit4..0 对应 5 列像素）。
- * 索引：font_table[ascii - 32]，可打印字符范围 32(空格)~90(Z)。
- */
-static const unsigned char g_font_5x7[][7] = {
-    // 32 SPACE
-    {0x00,0x00,0x00,0x00,0x00,0x00,0x00},
-    // 33 !
-    {0x04,0x04,0x04,0x04,0x00,0x04,0x00},
-    // 34 "
-    {0x0A,0x0A,0x0A,0x00,0x00,0x00,0x00},
-    // 35 #
-    {0x0A,0x0A,0x1F,0x0A,0x1F,0x0A,0x0A},
-    // 36 $
-    {0x04,0x0F,0x14,0x0E,0x05,0x1E,0x04},
-    // 37 %
-    {0x18,0x19,0x02,0x04,0x08,0x13,0x03},
-    // 38 &
-    {0x0C,0x12,0x14,0x08,0x15,0x12,0x0D},
-    // 39 '
-    {0x04,0x04,0x00,0x00,0x00,0x00,0x00},
-    // 40 (
-    {0x02,0x04,0x08,0x08,0x08,0x04,0x02},
-    // 41 )
-    {0x08,0x04,0x02,0x02,0x02,0x04,0x08},
-    // 42 *
-    {0x00,0x04,0x15,0x0E,0x15,0x04,0x00},
-    // 43 +
-    {0x00,0x04,0x04,0x1F,0x04,0x04,0x00},
-    // 44 ,
-    {0x00,0x00,0x00,0x00,0x04,0x04,0x08},
-    // 45 -
-    {0x00,0x00,0x00,0x1F,0x00,0x00,0x00},
-    // 46 .
-    {0x00,0x00,0x00,0x00,0x00,0x04,0x00},
-    // 47 /
-    {0x01,0x02,0x02,0x04,0x08,0x08,0x10},
-    // 48 0
-    {0x0E,0x11,0x13,0x15,0x19,0x11,0x0E},
-    // 49 1
-    {0x04,0x0C,0x04,0x04,0x04,0x04,0x0E},
-    // 50 2
-    {0x0E,0x11,0x01,0x02,0x04,0x08,0x1F},
-    // 51 3
-    {0x0E,0x11,0x01,0x06,0x01,0x11,0x0E},
-    // 52 4
-    {0x02,0x06,0x0A,0x12,0x1F,0x02,0x02},
-    // 53 5
-    {0x1F,0x10,0x1E,0x01,0x01,0x11,0x0E},
-    // 54 6
-    {0x06,0x08,0x10,0x1E,0x11,0x11,0x0E},
-    // 55 7
-    {0x1F,0x01,0x02,0x04,0x08,0x08,0x08},
-    // 56 8
-    {0x0E,0x11,0x11,0x0E,0x11,0x11,0x0E},
-    // 57 9
-    {0x0E,0x11,0x11,0x0F,0x01,0x02,0x0C},
-    // 58 :
-    {0x00,0x04,0x00,0x00,0x04,0x00,0x00},
-    // 59 ;
-    {0x00,0x04,0x00,0x00,0x04,0x04,0x08},
-    // 60 <
-    {0x02,0x04,0x08,0x10,0x08,0x04,0x02},
-    // 61 =
-    {0x00,0x00,0x1F,0x00,0x1F,0x00,0x00},
-    // 62 >
-    {0x08,0x04,0x02,0x01,0x02,0x04,0x08},
-    // 63 ?
-    {0x0E,0x11,0x01,0x02,0x04,0x00,0x04},
-    // 64 @
-    {0x0E,0x11,0x17,0x15,0x17,0x10,0x0F},
-    // 65 A
-    {0x04,0x0A,0x11,0x11,0x1F,0x11,0x11},
-    // 66 B
-    {0x1E,0x11,0x11,0x1E,0x11,0x11,0x1E},
-    // 67 C
-    {0x0E,0x11,0x10,0x10,0x10,0x11,0x0E},
-    // 68 D
-    {0x1E,0x11,0x11,0x11,0x11,0x11,0x1E},
-    // 69 E
-    {0x1F,0x10,0x10,0x1E,0x10,0x10,0x1F},
-    // 70 F
-    {0x1F,0x10,0x10,0x1E,0x10,0x10,0x10},
-    // 71 G
-    {0x0E,0x11,0x10,0x17,0x11,0x11,0x0F},
-    // 72 H
-    {0x11,0x11,0x11,0x1F,0x11,0x11,0x11},
-    // 73 I
-    {0x0E,0x04,0x04,0x04,0x04,0x04,0x0E},
-    // 74 J
-    {0x07,0x02,0x02,0x02,0x02,0x12,0x0C},
-    // 75 K
-    {0x11,0x12,0x14,0x18,0x14,0x12,0x11},
-    // 76 L
-    {0x10,0x10,0x10,0x10,0x10,0x10,0x1F},
-    // 77 M
-    {0x11,0x1B,0x15,0x15,0x11,0x11,0x11},
-    // 78 N
-    {0x11,0x11,0x19,0x15,0x13,0x11,0x11},
-    // 79 O
-    {0x0E,0x11,0x11,0x11,0x11,0x11,0x0E},
-    // 80 P
-    {0x1E,0x11,0x11,0x1E,0x10,0x10,0x10},
-    // 81 Q
-    {0x0E,0x11,0x11,0x11,0x15,0x12,0x0D},
-    // 82 R
-    {0x1E,0x11,0x11,0x1E,0x14,0x12,0x11},
-    // 83 S
-    {0x0E,0x11,0x10,0x0E,0x01,0x11,0x0E},
-    // 84 T
-    {0x1F,0x04,0x04,0x04,0x04,0x04,0x04},
-    // 85 U
-    {0x11,0x11,0x11,0x11,0x11,0x11,0x0E},
-    // 86 V
-    {0x11,0x11,0x11,0x11,0x0A,0x0A,0x04},
-    // 87 W
-    {0x11,0x11,0x11,0x15,0x15,0x15,0x0A},
-    // 88 X
-    {0x11,0x11,0x0A,0x04,0x0A,0x11,0x11},
-    // 89 Y
-    {0x11,0x11,0x0A,0x04,0x04,0x04,0x04},
-    // 90 Z
-    {0x1F,0x01,0x02,0x04,0x08,0x10,0x1F},
-};
-#define FONT_TABLE_START 32   /* ASCII 空格 */
-#define FONT_TABLE_END   90   /* ASCII Z */
-
-/**
- * @brief 生成文字编队（高密度像素簇版）
+ * 流程：
+ *   1. UTF-8 文字 → MultiByteToWideChar → 宽字符
+ *   2. 创建内存 DC + 位图，用 GDI TextOutW 渲染文字
+ *   3. 读取位图像素，降采样为低分辨率点阵
+ *   4. 按亮度二值化，亮的像素放置无人机
  *
- * 每个"亮"像素点不是放一架无人机，而是放一个 density×density 的
- * 像素簇（默认 3×3 = 9 架无人机），让文字看起来像密集的连线。
- * 相邻像素的簇会自然重叠融合。
+ * 优势：
+ *   - 支持中文、英文、数字等所有 Windows 字体字符
+ *   - 无需硬编码字库
+ *   - 只用 GDI（Windows 自带），不依赖第三方库
+ *   - 自动适配无人机数量
  *
  * @param center    文字区域中心
- * @param char_size  像素间距（字符格）
- * @param text       要显示的文字
- * @param count      可用无人机总数
+ * @param char_size  输出像素间距（字符格），决定文字大小
+ * @param text       UTF-8 文字
+ * @param count      可用无人机上限
  * @param out        输出位置数组
- * @return 实际使用的无人机数量
+ * @return 实际使用的无人机数
  */
 int gen_text(Point2f center, float char_size, const char* text,
              int count, Point2f out[])
@@ -811,68 +588,163 @@ int gen_text(Point2f center, float char_size, const char* text,
     int text_len = (int)strlen(text);
     if (text_len == 0) return 0;
 
-    // ── 先统计总像素数，决定簇密度 ──
-    // 密度自适应：可用无人机越多，簇越密
-    int total_pixels = 0;
-    for (int ci = 0; ci < text_len; ci++) {
-        unsigned char ascii = (unsigned char)text[ci];
-        if (ascii >= 'a' && ascii <= 'z') ascii -= 32;
-        if (ascii < FONT_TABLE_START || ascii > FONT_TABLE_END) continue;
-        const unsigned char* g = g_font_5x7[ascii - FONT_TABLE_START];
-        for (int r = 0; r < 7; r++) {
-            unsigned char b = g[r];
-            for (int c = 0; c < 5; c++) {
-                if (b & (1 << (4 - c))) total_pixels++;
-            }
-        }
+    /* ── 1. UTF-8 → 宽字符 ── */
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, text, -1, NULL, 0);
+    if (wlen <= 1) return 0;  // 转换失败或空串
+    WCHAR* wtext = (WCHAR*)malloc(wlen * sizeof(WCHAR));
+    if (wtext == NULL) return 0;
+    MultiByteToWideChar(CP_UTF8, 0, text, -1, wtext, wlen);
+    int wchars = wlen - 1;  // 不含尾 '\0'
+
+    /* ── 2. 创建内存 DC ── */
+    HDC hScreenDC = GetDC(NULL);
+    HDC hMemDC    = CreateCompatibleDC(hScreenDC);
+    if (hMemDC == NULL) { free(wtext); ReleaseDC(NULL, hScreenDC); return 0; }
+
+    /* ── 3. 创建字体（等宽，适合像素化） ── */
+    int fontHeight = 48;  // 渲染高度（像素）
+    HFONT hFont = CreateFontW(
+        fontHeight, 0, 0, 0,
+        FW_BOLD,           // 粗体，笔画更清晰
+        FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET,
+        OUT_TT_PRECIS,
+        CLIP_DEFAULT_PRECIS,
+        ANTIALIASED_QUALITY,
+        DEFAULT_PITCH | FF_DONTCARE,
+        L"SimHei"         // 黑体（支持中英文）
+    );
+    if (hFont == NULL) {
+        // SimHei 不可用时用系统默认字体
+        hFont = CreateFontW(fontHeight, 0, 0, 0, FW_BOLD,
+            FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+            OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
+            DEFAULT_PITCH | FF_DONTCARE, L"Arial");
     }
-    if (total_pixels == 0) return 0;  // 没有可渲染字符（如全中文）
+    SelectObject(hMemDC, hFont);
 
-    // 根据可用无人机数量选择密度
-    // density=3 → 9架/像素 (超密)  density=2 → 4架/像素 (适中)
-    // density=1 → 1架/像素 (骨架)
-    int density;
-    if (count >= total_pixels * 12)      density = 3;
-    else if (count >= total_pixels * 4)  density = 2;
-    else                                 density = 1;
+    /* ── 4. 测量文字尺寸 ── */
+    SIZE textSize;
+    GetTextExtentPoint32W(hMemDC, wtext, wchars, &textSize);
+    if (textSize.cx <= 0 || textSize.cy <= 0) {
+        DeleteObject(hFont); DeleteDC(hMemDC);
+        ReleaseDC(NULL, hScreenDC); free(wtext);
+        return 0;
+    }
 
-    // ── 布局参数 ──
-    float char_width = 6.0f * char_size;
-    float total_w = char_width * text_len - char_size;
-    float start_x = center.x - total_w / 2.0f;
-    float start_y = center.y - 3.0f * char_size;
-    float spacing = char_size / (float)density;
+    /* ── 5. 创建位图 ── */
+    int bmpW = textSize.cx + 4;   // 加边距防止贴边
+    int bmpH = textSize.cy + 4;
+    HBITMAP hBmp = CreateCompatibleBitmap(hScreenDC, bmpW, bmpH);
+    SelectObject(hMemDC, hBmp);
+
+    // 黑底白字
+    SetBkColor(hMemDC,   RGB(0, 0, 0));
+    SetTextColor(hMemDC, RGB(255, 255, 255));
+    SetBkMode(hMemDC, OPAQUE);
+
+    // 填充黑色背景
+    RECT fill = { 0, 0, bmpW, bmpH };
+    HBRUSH hBrush = CreateSolidBrush(RGB(0, 0, 0));
+    FillRect(hMemDC, &fill, hBrush);
+    DeleteObject(hBrush);
+
+    // 绘制文字
+    TextOutW(hMemDC, 2, 2, wtext, wchars);
+
+    /* ── 6. 读取像素 ── */
+    BITMAPINFO bmi;
+    memset(&bmi, 0, sizeof(bmi));
+    bmi.bmiHeader.biSize     = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth    = bmpW;
+    bmi.bmiHeader.biHeight   = -bmpH;  // 负值 = 自上而下
+    bmi.bmiHeader.biPlanes   = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    BYTE* pixels = (BYTE*)malloc(bmpW * bmpH * 4);
+    if (pixels == NULL) {
+        DeleteObject(hBmp); DeleteObject(hFont);
+        DeleteDC(hMemDC); ReleaseDC(NULL, hScreenDC);
+        free(wtext);
+        return 0;
+    }
+    GetDIBits(hMemDC, hBmp, 0, bmpH, pixels, &bmi, DIB_RGB_COLORS);
+
+    /* ── 7. 计算输出网格 ── */
+    // 目标：在 stage 范围内尽可能清晰
+    float aspect = (float)bmpW / (float)bmpH;
+    float maxW   = STAGE_COLS - 10;  // 舞台宽度减去边距
+    float maxH   = STAGE_ROWS - 10;
+
+    int outW, outH;
+    if (aspect > maxW / maxH) {
+        outW = (int)(maxW / char_size);
+        outH = (int)(outW / aspect);
+    } else {
+        outH = (int)(maxH / char_size);
+        outW = (int)(outH * aspect);
+    }
+    if (outW < 1) outW = 1;
+    if (outH < 1) outH = 1;
+
+    // 降采样因子
+    float cellW = (float)bmpW / outW;
+    float cellH = (float)bmpH / outH;
+
+    // 亮度阈值：用平均亮度作自适应阈值
+    unsigned long long sum = 0;
+    for (int i = 0; i < bmpW * bmpH; i++) {
+        BYTE r = pixels[i * 4 + 2];  // R 分量
+        BYTE g = pixels[i * 4 + 1];  // G 分量
+        BYTE b = pixels[i * 4 + 0];  // B 分量
+        sum += (r + g + b) / 3;
+    }
+    int avgBright = (int)(sum / (bmpW * bmpH));
+    int threshold = avgBright + (255 - avgBright) / 3;  // 高于均值 1/3
+    if (threshold < 30) threshold = 30;
+
+    /* ── 8. 采样并生成无人机位置 ── */
+    float start_x = center.x - (outW * char_size) / 2.0f;
+    float start_y = center.y - (outH * char_size) / 2.0f;
 
     int idx = 0;
+    for (int gy = 0; gy < outH && idx < count; gy++) {
+        for (int gx = 0; gx < outW && idx < count; gx++) {
+            // 计算该采样格内的平均亮度
+            int bx0 = (int)(gx * cellW);
+            int by0 = (int)(gy * cellH);
+            int bx1 = (int)((gx + 1) * cellW);
+            int by1 = (int)((gy + 1) * cellH);
+            if (bx1 > bmpW) bx1 = bmpW;
+            if (by1 > bmpH) by1 = bmpH;
 
-    for (int ci = 0; ci < text_len && idx < count; ci++) {
-        unsigned char ascii = (unsigned char)text[ci];
-        if (ascii >= 'a' && ascii <= 'z') ascii -= 32;
-        if (ascii < FONT_TABLE_START || ascii > FONT_TABLE_END) continue;
-
-        const unsigned char* glyph = g_font_5x7[ascii - FONT_TABLE_START];
-
-        // 遍历 7×5 点阵
-        for (int row = 0; row < 7 && idx < count; row++) {
-            unsigned char bits = glyph[row];
-            for (int col = 0; col < 5 && idx < count; col++) {
-                if (!(bits & (1 << (4 - col)))) continue;
-
-                // 像素中心坐标
-                float cx = start_x + ci * char_width + col * char_size;
-                float cy = start_y + row * char_size;
-
-                // 在该像素周围放置 density×density 簇
-                for (int dr = 0; dr < density && idx < count; dr++) {
-                    for (int dc = 0; dc < density && idx < count; dc++) {
-                        out[idx].x = cx + (dc - (density - 1) / 2.0f) * spacing;
-                        out[idx].y = cy + (dr - (density - 1) / 2.0f) * spacing;
-                        idx++;
-                    }
+            int cellSum = 0, cellCnt = 0;
+            for (int py = by0; py < by1; py++) {
+                for (int px = bx0; px < bx1; px++) {
+                    BYTE* p = &pixels[(py * bmpW + px) * 4];
+                    cellSum += (p[2] + p[1] + p[0]) / 3;
+                    cellCnt++;
                 }
+            }
+            if (cellCnt == 0) continue;
+
+            int cellBright = cellSum / cellCnt;
+            if (cellBright >= threshold) {
+                out[idx].x = start_x + gx * char_size + char_size / 2.0f;
+                out[idx].y = start_y + gy * char_size + char_size / 2.0f;
+                idx++;
             }
         }
     }
+
+    /* ── 9. 清理 ── */
+    free(pixels);
+    DeleteObject(hBmp);
+    DeleteObject(hFont);
+    DeleteDC(hMemDC);
+    ReleaseDC(NULL, hScreenDC);
+    free(wtext);
 
     return idx;
 }
@@ -934,13 +806,9 @@ int pattern_generate(PatternType type, Point2f center,
 
 /* ==================== 编队便捷函数 ==================== */
 
-/**
- * @brief 获取图案的推荐无人机数量和缩放值
- *
- * 不同图案的最优呈现需要不同数量：
- *   - 圆形/方形等边框图案：稍少无人机避免拥挤
- *   - 星形/心形：稍多无人机使轮廓清晰
- *   - 文字：根据文本长度动态计算
+/*
+ * 获取图案的推荐无人机数量和缩放值
+ * 不同图案最优呈现需要的无人机数不同（边框图案少、星形心形多、文字动态计算）
  */
 void pattern_recommend(PatternType type, int text_len,
                        int* out_count, float* out_scale)
@@ -962,12 +830,12 @@ void pattern_recommend(PatternType type, int text_len,
     case PAT_GRID:      *out_count = 25;  *out_scale = 22.0f; break;
     case PAT_RANDOM:    *out_count = 30;  *out_scale = 25.0f; break;
     case PAT_TEXT:
-        // 统一简约风格：每像素1架无人机（骨架点阵），不管几个字都一样
+        // GDI 渲染：char_size=输出像素间距（1~2格较合适）
         if (text_len <= 0) text_len = 3;
-        *out_count = text_len * 20;   // 每字≈20像素，密度1
-        if (*out_count > 100) *out_count = 100;
-        if (*out_count < 20)  *out_count = 20;
-        *out_scale = 6.0f;   // char_size=2 整数，字形均匀
+        *out_count = text_len * 60;    // 每字约60架
+        if (*out_count > 250) *out_count = 250;
+        if (*out_count < 40)  *out_count = 40;
+        *out_scale = 3.0f;   // char_size=1（1格/像素，紧密）
         break;
     default:
         *out_count = 20;  *out_scale = 15.0f; break;

@@ -1,18 +1,12 @@
-/**
- * @file    graphics.cpp
- * @brief   控制台字符画渲染 —— 内存帧缓冲方案（零闪烁，零残影）
- * @author  [队友名字]
- * @date    2026-06-08
+/*
+ * graphics.cpp —— 控制台渲染模块实现
  *
- * 架构：
- *   1. 维护一个 CHAR_INFO 二维帧缓冲（120×45），完全脱离控制台绘制
- *   2. 所有绘制操作只修改帧缓冲中的字符和颜色
- *   3. 每帧结束时，用 WriteConsoleOutputW 一次性将整个帧缓冲写入控制台
- *   4. 不存在双缓冲切换、不存在 printf 指向错误 —— 一个 WriteConsoleOutput 搞定一切
+ * 核心思路：在内存中维护一个 CHAR_INFO[45][120] 帧缓冲，
+ * 所有绘制操作只改这个数组，不碰控制台。
+ * 每帧结束时用 WriteConsoleOutputW 一次性写入，彻底消除闪烁。
  *
- * 为什么之前有白线：
- *   printf 写 stdout → 写到原始缓冲区 → 双缓冲交换后两个缓冲区内容错乱
- *   帧缓冲方案完全绕过了这个问题：统一在内存中绘制，一次输出。
+ * 为什么不用 printf：printf 写 stdout，指向原始控制台缓冲区，
+ * 和我们的帧缓冲不同步，会造成残影和乱码。
  */
 
 #include "../include/graphics.h"

@@ -1,133 +1,111 @@
-/**
- * @file    drone.cpp
- * @brief   无人机实体模块实现
- * @author  [你的名字]
- * @date    2026-06-08
+/*
+ * drone.cpp —— 无人机实体模块实现
+ *
+ * 详细说明见 drone.h。
  */
 
 #include "../include/drone.h"
 
-/* ==================== 颜色映射表 ==================== */
-
-/**
- * @brief 将 LightColor 枚举值映射为 Windows 控制台颜色属性（WORD）
+/*
+ * 颜色映射表 —— 把 LightColor 枚举值映射为控制台颜色常量
  *
- * 索引为 LightColor 枚举的值，便于 O(1) 查表。
- * 在 SetConsoleTextAttribute(hConsole, color) 中使用。
+ * 下标就是 LightColor 的值，O(1) 查表。
+ * 颜色常量 CON_RED 等定义在 common.h 中，本质是 Windows 控制台的
+ * 前景色属性（FOREGROUND_RED | FOREGROUND_INTENSITY 等）。
  */
 static const ConsoleColor g_color_table[] = {
-    CON_BLACK,          // COLOR_OFF    —— 黑色（熄灭）
-    CON_RED,            // COLOR_RED    —— 红色
-    CON_GREEN,          // COLOR_GREEN  —— 绿色
-    CON_BLUE,           // COLOR_BLUE   —— 蓝色
-    CON_WHITE,          // COLOR_WHITE  —— 白色
-    CON_YELLOW,         // COLOR_YELLOW —— 黄色
-    CON_CYAN,           // COLOR_CYAN   —— 青色
-    CON_PURPLE,         // COLOR_PURPLE —— 紫色
-    CON_ORANGE,         // COLOR_ORANGE —— 橙色
+    CON_BLACK,     // COLOR_OFF
+    CON_RED,       // COLOR_RED
+    CON_GREEN,     // COLOR_GREEN
+    CON_BLUE,      // COLOR_BLUE
+    CON_WHITE,     // COLOR_WHITE
+    CON_YELLOW,    // COLOR_YELLOW
+    CON_CYAN,      // COLOR_CYAN
+    CON_PURPLE,    // COLOR_PURPLE
+    CON_ORANGE,    // COLOR_ORANGE
 };
-
 #define COLOR_TABLE_SIZE (sizeof(g_color_table) / sizeof(g_color_table[0]))
 
-/* ==================== 辅助函数 ==================== */
-
-/**
- * @brief 将 LightColor 转为控制台颜色属性（ConsoleColor）
- * @param color 颜色枚举
- * @return 控制台颜色属性 WORD
- */
+// 把 LightColor 枚举值转为控制台颜色值
 static ConsoleColor lightcolor_to_console(LightColor color)
 {
     int idx = (int)color;
     if (idx < 0 || idx >= (int)COLOR_TABLE_SIZE) {
-        return CON_GRAY;      // 无效颜色 → 灰色兜底
+        return CON_GRAY;   // 无效颜色用灰色兜底
     }
     return g_color_table[idx];
 }
 
-/* ==================== 生命周期管理 ==================== */
+/* ================================================================
+ * 生命周期管理
+ * ================================================================ */
 
 Drone* drone_create(int id, float x, float y, float height)
 {
-    // 在堆上分配无人机内存
     Drone* drone = (Drone*)malloc(sizeof(Drone));
-    if (drone == NULL) {
-        return NULL;    // 内存分配失败
-    }
+    if (drone == NULL) return NULL;
 
-    // 初始化基本属性
-    drone->id       = id;
+    drone->id         = id;
     drone->position.x = x;
     drone->position.y = y;
-    drone->height   = height;
-    drone->is_active = 1;       // 默认活跃
+    drone->height     = height;
+    drone->is_active  = 1;
 
-    // 初始化灯光状态（默认白灯常亮）
+    // 默认白灯常亮
     drone->light.color          = COLOR_WHITE;
     drone->light.mode           = LIGHT_STEADY;
     drone->light.blink_interval = BLINK_INTERVAL_MS;
     drone->light.blink_timer    = 0;
-    drone->light.is_visible     = 1;        // 初始可见
+    drone->light.is_visible     = 1;
 
     return drone;
 }
 
 void drone_destroy(Drone* drone)
 {
-    if (drone != NULL) {
-        free(drone);
-    }
+    if (drone != NULL) free(drone);
 }
 
 Drone** drone_create_fleet(int count, int start_id)
 {
-    if (count <= 0 || count > MAX_DRONE_COUNT) {
-        return NULL;
-    }
+    if (count <= 0 || count > MAX_DRONE_COUNT) return NULL;
 
-    // 为无人机指针数组分配内存
+    // 先分配指针数组
     Drone** fleet = (Drone**)malloc(sizeof(Drone*) * count);
-    if (fleet == NULL) {
-        return NULL;
-    }
+    if (fleet == NULL) return NULL;
 
-    // 逐架创建无人机，初始位置设在地面中央
+    // 逐架创建，初始位置放在舞台中央
     for (int i = 0; i < count; i++) {
         fleet[i] = drone_create(
             start_id + i,
-            (float)(STAGE_COLS  / 2),   // X 居中
-            (float)(STAGE_ROWS / 2),    // Y 居中
-            0.0f                         // 初始高度 0
+            (float)(STAGE_COLS / 2),
+            (float)(STAGE_ROWS / 2),
+            0.0f
         );
         if (fleet[i] == NULL) {
-            // 创建失败则回滚：释放已创建的部分
-            for (int j = 0; j < i; j++) {
-                drone_destroy(fleet[j]);
-            }
+            // 创建失败，回滚：释放已创建的部分
+            for (int j = 0; j < i; j++) drone_destroy(fleet[j]);
             free(fleet);
             return NULL;
         }
     }
-
     return fleet;
 }
 
 void drone_destroy_fleet(Drone** fleet, int count)
 {
     if (fleet == NULL) return;
-
-    for (int i = 0; i < count; i++) {
-        drone_destroy(fleet[i]);
-    }
+    for (int i = 0; i < count; i++) drone_destroy(fleet[i]);
     free(fleet);
 }
 
-/* ==================== 位置操作 ==================== */
+/* ================================================================
+ * 位置操作
+ * ================================================================ */
 
 void drone_set_position(Drone* drone, float x, float y, float height)
 {
     if (drone == NULL) return;
-
     drone->position.x = x;
     drone->position.y = y;
     drone->height     = height;
@@ -136,27 +114,23 @@ void drone_set_position(Drone* drone, float x, float y, float height)
 void drone_move(Drone* drone, float dx, float dy, float dh)
 {
     if (drone == NULL) return;
-
     drone->position.x += dx;
     drone->position.y += dy;
     drone->height     += dh;
-
-    // 高度不允许为负
-    if (drone->height < 0.0f) {
-        drone->height = 0.0f;
-    }
+    if (drone->height < 0.0f) drone->height = 0.0f;  // 高度不能为负
 }
 
 void drone_get_display_pos(const Drone* drone, int* x, int* y)
 {
     if (drone == NULL || x == NULL || y == NULL) return;
-
-    // 浮点坐标四舍五入转整数（用于屏幕显示）
+    // 四舍五入转整数坐标
     *x = (int)(drone->position.x + 0.5f);
     *y = (int)(drone->position.y + 0.5f);
 }
 
-/* ==================== 灯光操作 ==================== */
+/* ================================================================
+ * 灯光操作
+ * ================================================================ */
 
 void drone_set_light_color(Drone* drone, LightColor color)
 {
@@ -167,18 +141,16 @@ void drone_set_light_color(Drone* drone, LightColor color)
 void drone_set_light_mode(Drone* drone, LightMode mode)
 {
     if (drone == NULL) return;
-
     drone->light.mode = mode;
 
-    // 模式变更时重置闪烁计时器和可见性
+    // 模式切换时重置闪烁计数器和可见性
     if (mode == LIGHT_STEADY) {
         drone->light.is_visible  = 1;
         drone->light.blink_timer = 0;
     } else if (mode == LIGHT_BLINK) {
-        drone->light.is_visible  = 1;      // 闪烁从"亮"开始
+        drone->light.is_visible  = 1;   // 闪烁从亮开始
         drone->light.blink_timer = 0;
-    } else {
-        // LIGHT_OFF
+    } else {  // LIGHT_OFF
         drone->light.is_visible  = 0;
         drone->light.blink_timer = 0;
     }
@@ -187,28 +159,25 @@ void drone_set_light_mode(Drone* drone, LightMode mode)
 void drone_set_blink_interval(Drone* drone, int interval_ms)
 {
     if (drone == NULL) return;
-
-    // 闪烁间隔不小于 50ms（太快无意义）
-    if (interval_ms < 50) {
-        interval_ms = 50;
-    }
+    if (interval_ms < 50) interval_ms = 50;  // 太快没意义
     drone->light.blink_interval = interval_ms;
 }
 
 void drone_light_onoff(Drone* drone, int on)
 {
     if (drone == NULL) return;
-
     if (on) {
-        drone->light.mode = LIGHT_STEADY;
+        drone->light.mode       = LIGHT_STEADY;
         drone->light.is_visible = 1;
     } else {
-        drone->light.mode = LIGHT_OFF;
+        drone->light.mode       = LIGHT_OFF;
         drone->light.is_visible = 0;
     }
 }
 
-/* ==================== 状态查询 ==================== */
+/* ================================================================
+ * 状态查询 —— 驱动闪烁逻辑
+ * ================================================================ */
 
 int drone_is_active(const Drone* drone)
 {
@@ -216,49 +185,41 @@ int drone_is_active(const Drone* drone)
     return drone->is_active;
 }
 
+/*
+ * 获取本帧颜色 —— 闪烁逻辑的核心
+ *
+ * 每帧都会调用，传入本帧时间增量 delta_ms。
+ * 闪烁模式下的计时器在这里更新：累加 delta_ms，到达 blink_interval 就翻转
+ * is_visible，然后减去一个周期（保留余数，保证精确）。
+ */
 ConsoleColor drone_get_current_color(Drone* drone, int delta_ms)
 {
     if (drone == NULL) return CON_BLACK;
 
-    // 根据灯光模式处理闪烁逻辑
     switch (drone->light.mode) {
     case LIGHT_OFF:
-        // 灯光关闭 → 始终返回黑色
         return CON_BLACK;
 
     case LIGHT_STEADY:
-        // 常亮 → 直接返回颜色表中的颜色
         return lightcolor_to_console(drone->light.color);
 
     case LIGHT_BLINK:
-        // 闪烁模式：累加计时器，周期性切换亮/灭
         drone->light.blink_timer += delta_ms;
-
         if (drone->light.blink_timer >= drone->light.blink_interval) {
-            // 满一个周期：切换到相反状态
+            // 满一个周期，翻转亮灭
             drone->light.is_visible = !drone->light.is_visible;
             drone->light.blink_timer -= drone->light.blink_interval;
         }
-
-        // 根据当前可见性返回颜色或黑色
-        if (drone->light.is_visible) {
-            return lightcolor_to_console(drone->light.color);
-        } else {
-            return CON_BLACK;
-        }
+        return drone->light.is_visible
+            ? lightcolor_to_console(drone->light.color)
+            : CON_BLACK;
 
     default:
         return CON_BLACK;
     }
 }
 
-/* ==================== 工具函数：颜色名称获取 ==================== */
-
-/**
- * @brief 根据颜色枚举返回对应的中文字符串（供 UI 显示用）
- * @param color 颜色枚举
- * @return 中文字符串指针（静态常量）
- */
+// 颜色枚举 → 中文名，供 UI 显示
 const char* color_to_name(LightColor color)
 {
     switch (color) {

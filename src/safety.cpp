@@ -1,12 +1,9 @@
-/**
- * @file    safety.cpp
- * @brief   安全检测模块实现
- * @author  [你的名字]
- * @date    2026-06-08
+/*
+ * safety.cpp —— 安全检测模块实现
  *
- * 检测算法：
- *   边界检测 —— 单向比较，O(n)
- *   间距检测 —— 两两比较，O(n²)，跳过自身和无序重复对
+ * 边界检测 O(n)：逐架比较 x, y 是否超出安全区域
+ * 间距检测 O(n²)：两两比较欧氏距离，j 从 i+1 开始避免重复
+ * 碰撞避让：距离太近时施加排斥力推开
  */
 
 #include "../include/safety.h"
@@ -144,11 +141,9 @@ void safety_result_clear(SafetyResult* result)
 
 /* ==================== 碰撞自动避让 ==================== */
 
-/**
- * @brief 碰撞自动避让
- *
- * 对距离过近的无人机对施加排斥力，自动推开。
- * 仅在距离 < 安全间距的一半时触发，轻微推开。
+/*
+ * 碰撞自动避让 —— 距离 < 安全间距一半时，两架飞机各向相反方向推开
+ * 排斥力大小 = (安全距离 - 实际距离) / 安全距离 × strength
  */
 void safety_avoid_collisions(Drone* fleet[], int count,
                              const SafetyZone* zone, float strength)
