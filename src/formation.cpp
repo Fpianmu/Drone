@@ -626,7 +626,7 @@ int gen_text(Point2f center, float char_size, const char* text,
     SelectObject(hDstDC, hDstBmp);
     SetStretchBltMode(hDstDC, COLORONCOLOR);
     StretchBlt(hDstDC, 0, 0, outW, outH,
-               hSrcDC, 0, 0, ts.cx, ts.cy, SRCCOPY);
+               hSrcDC, 0, 0, ts.cx + 4, ts.cy + 4, SRCCOPY);
 
     // 逐像素采样 → 白像素放无人机
     float cell_sz = (float)(STAGE_COLS - 6) / outW;
