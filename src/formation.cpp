@@ -671,35 +671,43 @@ int gen_text(Point2f center, float char_size, const char* text,
     }
     GetDIBits(hMemDC, hBmp, 0, bmpH, pixels, &bmi, DIB_RGB_COLORS);
 
-    /* ── 7. 计算输出网格 ── */
-    // 目标：在 stage 范围内尽可能清晰
+    /* ── 7. 根据可用无人机数计算输出网格 ── */
+    // 文字通常占其包围盒 30%~50% 的面积，所以总格数 ≈ count / 0.4
+    // 然后按宽高比分配，同时限制不超过舞台尺寸
     float aspect = (float)bmpW / (float)bmpH;
-    float maxW   = STAGE_COLS - 10;  // 舞台宽度减去边距
-    float maxH   = STAGE_ROWS - 10;
+    int maxW = STAGE_COLS - 6;
+    int maxH = STAGE_ROWS - 6;
 
-    int outW, outH;
-    if (aspect > maxW / maxH) {
-        outW = (int)(maxW / char_size);
-        outH = (int)(outW / aspect);
-    } else {
-        outH = (int)(maxH / char_size);
-        outW = (int)(outH * aspect);
-    }
-    if (outW < 1) outW = 1;
-    if (outH < 1) outH = 1;
+    // 估算需要的总格数
+    int totalCells = count * 5 / 2;  // count / 0.4 ≈ count * 2.5
+    // 按宽高比拆分为 outW × outH
+    int outH = (int)(sqrtf((float)totalCells / aspect));
+    int outW = (int)(outH * aspect);
+    if (outW < 2) { outW = 2; outH = (int)(outW / aspect); }
+    if (outH < 2) { outH = 2; outW = (int)(outH * aspect); }
+
+    // 限制在舞台范围内
+    if (outW > maxW) { outW = maxW; outH = (int)(outW / aspect); }
+    if (outH > maxH) { outH = maxH; outW = (int)(outH * aspect); }
 
     // 降采样因子
     float cellW = (float)bmpW / outW;
     float cellH = (float)bmpH / outH;
 
-    // 亮度阈值：固定低阈值，确保细笔画也能采样到
-    // 黑底白字的情况下，笔画区域亮度通常 > 100
-    // 用较低阈值（60）捕获全部笔画，包括抗锯齿边缘
+    // 亮度阈值：黑底白字时笔画 > 100，用 60 捕获全部
     int threshold = 60;
 
     /* ── 8. 采样并生成无人机位置 ── */
-    float start_x = center.x - (outW * char_size) / 2.0f;
-    float start_y = center.y - (outH * char_size) / 2.0f;
+    // 用格子的实际大小做间距（保持字形比例）
+    float gridW = (float)maxW / outW;
+    float gridH = (float)maxH / outH;
+    float cell_size = (gridW < gridH) ? gridW : gridH;
+    if (cell_size < 1.0f) cell_size = 1.0f;
+
+    float total_w = outW * cell_size;
+    float total_h = outH * cell_size;
+    float start_x = center.x - total_w / 2.0f;
+    float start_y = center.y - total_h / 2.0f;
 
     int idx = 0;
     for (int gy = 0; gy < outH && idx < count; gy++) {
@@ -724,8 +732,8 @@ int gen_text(Point2f center, float char_size, const char* text,
 
             int cellBright = cellSum / cellCnt;
             if (cellBright >= threshold) {
-                out[idx].x = start_x + gx * char_size + char_size / 2.0f;
-                out[idx].y = start_y + gy * char_size + char_size / 2.0f;
+                out[idx].x = start_x + gx * cell_size + cell_size / 2.0f;
+                out[idx].y = start_y + gy * cell_size + cell_size / 2.0f;
                 idx++;
             }
         }
@@ -825,10 +833,10 @@ void pattern_recommend(PatternType type, int text_len,
     case PAT_TEXT:
         // GDI 渲染：char_size=输出像素间距（1~2格较合适）
         if (text_len <= 0) text_len = 3;
-        *out_count = text_len * 60;    // 每字约60架
-        if (*out_count > 250) *out_count = 250;
-        if (*out_count < 40)  *out_count = 40;
-        *out_scale = 3.0f;   // char_size=1（1格/像素，紧密）
+        *out_count = text_len * 80;    // 每字约80架（中文需要更多）
+        if (*out_count > 280) *out_count = 280;
+        if (*out_count < 60)  *out_count = 60;
+        *out_scale = 3.0f;   // 仅作后备，实际格子数由 count 决定
         break;
     default:
         *out_count = 20;  *out_scale = 15.0f; break;
