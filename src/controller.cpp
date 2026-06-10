@@ -198,7 +198,7 @@ void controller_run(Controller* ctrl)
             int a = ctrl->safety_result.pair_a[i];
             int b = ctrl->safety_result.pair_b[i];
             snprintf(ctrl->warn_log[ctrl->warn_log_count], MAX_WARNING_LEN,
-                     "碰撞: D#%d-D#%d 间距过近 → 已推开", a, b);
+                     "碰撞: D#%d-D#%d 间距过近 → 已标红", a, b);
             ctrl->warn_log_count++;
         }
 
@@ -425,10 +425,7 @@ void ctrl_update_frame(Controller* ctrl, int delta_ms)
     traj_update_fleet(ctrl->fleet, ctrl->trajectories,
                       ctrl->drone_count, DEFAULT_SPEED, effective_delta);
 
-    // 2) 碰撞避让：仅防止完全重叠（间距<1格时推开0.2格力度）
-    // 文字编队的密集排列不受影响——文字间距本来就>1格
-    safety_avoid_collisions(ctrl->fleet, ctrl->drone_count,
-                            ctrl->safety_zone, 0.2f);
+    // 2) 不主动推开——由安全检测+面板日志负责告警
 }
 
 /* ==================== 帧渲染 ==================== */
@@ -446,8 +443,29 @@ void ctrl_render_frame(Controller* ctrl, int delta_ms)
     // 绘制表演区域
     graphics_draw_stage(ctrl->safety_zone);
 
-    // 绘制所有无人机（含灯光效果）
+    // 绘制所有无人机（含灯光效果），碰撞中的飞机临时标红
+    LightColor saved_colors[MAX_DRONE_COUNT];
+    int        modified[MAX_DRONE_COUNT] = {0};
+    for (int i = 0; i < ctrl->safety_result.distance_violations; i++) {
+        int a = ctrl->safety_result.pair_a[i];
+        int b = ctrl->safety_result.pair_b[i];
+        for (int j = 0; j < ctrl->drone_count; j++) {
+            if (ctrl->fleet[j] != NULL && ctrl->fleet[j]->is_active) {
+                if (ctrl->fleet[j]->id == a || ctrl->fleet[j]->id == b) {
+                    if (!modified[j]) {
+                        saved_colors[j] = ctrl->fleet[j]->light.color;
+                        modified[j] = 1;
+                    }
+                    ctrl->fleet[j]->light.color = COLOR_RED;
+                }
+            }
+        }
+    }
     graphics_draw_all_drones(ctrl->fleet, ctrl->drone_count, delta_ms);
+    // 恢复原色
+    for (int j = 0; j < ctrl->drone_count; j++) {
+        if (modified[j]) ctrl->fleet[j]->light.color = saved_colors[j];
+    }
 
     // 绘制安全告警
     int has_warning = 0;
