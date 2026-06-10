@@ -407,8 +407,10 @@ void ctrl_update_frame(Controller* ctrl, int delta_ms)
     traj_update_fleet(ctrl->fleet, ctrl->trajectories,
                       ctrl->drone_count, DEFAULT_SPEED, effective_delta);
 
-    // 2) 碰撞自动避让（力度极小，仅防完全重叠，不破坏编队） — 已移至安全检测后
-    // 注：文字编队无人机本身就很近，避让会破坏字形。仅在间距<0.5格时微调。
+    // 2) 碰撞避让：仅防止完全重叠（间距<1格时推开0.2格力度）
+    // 文字编队的密集排列不受影响——文字间距本来就>1格
+    safety_avoid_collisions(ctrl->fleet, ctrl->drone_count,
+                            ctrl->safety_zone, 0.2f);
 }
 
 /* ==================== 帧渲染 ==================== */
