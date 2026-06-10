@@ -86,7 +86,9 @@ int traj_update(Trajectory* traj, Drone* drone, float speed, int delta_ms)
     float step = speed * delta_ms / 1000.0f;
 
     if (dist < 0.5f) {
-        // 已到达航点 → 同步灯光状态
+        // 吸附到精确目标位置，消除浮点累积误差
+        drone_set_position(drone, target->position.x, target->position.y,
+                           drone->height);
         drone_set_light_color(drone, target->light_color);
         drone_set_light_mode(drone, target->light_mode);
 
@@ -115,13 +117,16 @@ int traj_update(Trajectory* traj, Drone* drone, float speed, int delta_ms)
     }
 
     // 未到达 → 沿方向移动一步
-    float nx = dx / dist;   // 方向向量归一化 X
-    float ny = dy / dist;   // 方向向量归一化 Y
-
-    // 移动（不超过目标距离）
-    if (step > dist) step = dist;
-
-    drone_move(drone, nx * step, ny * step, 0.0f);
+    if (step >= dist) {
+        // 步长超过剩余距离 → 直接吸附到目标
+        drone_set_position(drone, target->position.x, target->position.y,
+                           drone->height);
+    } else {
+        // 沿方向向量移动一步
+        float nx = dx / dist;
+        float ny = dy / dist;
+        drone_move(drone, nx * step, ny * step, 0.0f);
+    }
 
     return 1;   // 仍在运动
 }
