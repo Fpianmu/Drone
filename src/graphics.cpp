@@ -133,18 +133,24 @@ static void fb_flush(void)
 {
     if (g_hOut == NULL) return;
 
-    // 检测缓冲区尺寸是否改变（用户缩放窗口）
+    // 每次写入前强制恢复缓冲区尺寸为 120×45
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     if (GetConsoleScreenBufferInfo(g_hOut, &csbi)) {
-        if (csbi.dwSize.X != g_prevBufW || csbi.dwSize.Y != g_prevBufH) {
-            // 尺寸变了 → 清空整个缓冲区，消除乱码残留
-            g_prevBufW = csbi.dwSize.X;
-            g_prevBufH = csbi.dwSize.Y;
-            DWORD total = (DWORD)csbi.dwSize.X * csbi.dwSize.Y;
-            DWORD done  = 0;
-            COORD zero  = { 0, 0 };
+        if (csbi.dwSize.X != CONSOLE_WIDTH || csbi.dwSize.Y != CONSOLE_HEIGHT) {
+            // 尺寸变了 → 强制恢复
+            COORD fixSz = { CONSOLE_WIDTH, CONSOLE_HEIGHT };
+            SetConsoleScreenBufferSize(g_hOut, fixSz);
+            SMALL_RECT fixRect = { 0, 0, CONSOLE_WIDTH - 1, CONSOLE_HEIGHT - 1 };
+            SetConsoleWindowInfo(g_hOut, TRUE, &fixRect);
+
+            // 清空整个缓冲区
+            DWORD total = CONSOLE_WIDTH * CONSOLE_HEIGHT, done = 0;
+            COORD zero = { 0, 0 };
             FillConsoleOutputCharacterW(g_hOut, L' ', total, zero, &done);
             FillConsoleOutputAttribute(g_hOut, CON_WHITE, total, zero, &done);
+
+            g_prevBufW = CONSOLE_WIDTH;
+            g_prevBufH = CONSOLE_HEIGHT;
         }
     }
 
