@@ -601,8 +601,8 @@ int gen_text(Point2f center, float char_size, const char* text,
     HDC hMemDC    = CreateCompatibleDC(hScreenDC);
     if (hMemDC == NULL) { free(wtext); ReleaseDC(NULL, hScreenDC); return 0; }
 
-    /* ── 3. 创建字体（高度适配舞台尺寸） ── */
-    int fontHeight = 24;  // 渲染高度（像素），越小字越矮但不会超出舞台
+    /* ── 3. 创建字体（64px 保证足够细节再降采样） ── */
+    int fontHeight = 64;  // 大字体渲染 → 降采样后保留笔画细节
     HFONT hFont = CreateFontW(
         fontHeight, 0, 0, 0,
         FW_BOLD,           // 粗体，笔画更清晰
@@ -712,7 +712,8 @@ int gen_text(Point2f center, float char_size, const char* text,
     int idx = 0;
     for (int gy = 0; gy < outH && idx < count; gy++) {
         for (int gx = 0; gx < outW && idx < count; gx++) {
-            // 计算该采样格内的平均亮度
+            // 用最大值采样（不是平均值）—— 只要格内有一个亮像素就保留
+            // 这样细笔画不会被平均掉
             int bx0 = (int)(gx * cellW);
             int by0 = (int)(gy * cellH);
             int bx1 = (int)((gx + 1) * cellW);
@@ -720,18 +721,15 @@ int gen_text(Point2f center, float char_size, const char* text,
             if (bx1 > bmpW) bx1 = bmpW;
             if (by1 > bmpH) by1 = bmpH;
 
-            int cellSum = 0, cellCnt = 0;
+            int cellMax = 0;
             for (int py = by0; py < by1; py++) {
                 for (int px = bx0; px < bx1; px++) {
                     BYTE* p = &pixels[(py * bmpW + px) * 4];
-                    cellSum += (p[2] + p[1] + p[0]) / 3;
-                    cellCnt++;
+                    int bri = (p[2] + p[1] + p[0]) / 3;
+                    if (bri > cellMax) cellMax = bri;
                 }
             }
-            if (cellCnt == 0) continue;
-
-            int cellBright = cellSum / cellCnt;
-            if (cellBright >= threshold) {
+            if (cellMax >= threshold) {
                 out[idx].x = start_x + gx * cell_size + cell_size / 2.0f;
                 out[idx].y = start_y + gy * cell_size + cell_size / 2.0f;
                 idx++;
@@ -833,9 +831,9 @@ void pattern_recommend(PatternType type, int text_len,
     case PAT_TEXT:
         // GDI 渲染：char_size=输出像素间距（1~2格较合适）
         if (text_len <= 0) text_len = 3;
-        *out_count = text_len * 80;    // 每字约80架（中文需要更多）
+        *out_count = text_len * 120;   // 每字约120架（大字体+密集采样）
         if (*out_count > 280) *out_count = 280;
-        if (*out_count < 60)  *out_count = 60;
+        if (*out_count < 80)  *out_count = 80;
         *out_scale = 3.0f;   // 仅作后备，实际格子数由 count 决定
         break;
     default:
