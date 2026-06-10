@@ -387,28 +387,37 @@ void ctrl_render_frame(Controller* ctrl, int delta_ms)
     // 清屏
     graphics_clear();
 
+    // 顶部标题栏
+    graphics_draw_title_bar(ctrl->sim_state, ctrl->sim_elapsed_ms);
+
     // 绘制表演区域
     graphics_draw_stage(ctrl->safety_zone);
 
     // 绘制所有无人机（含灯光效果）
     graphics_draw_all_drones(ctrl->fleet, ctrl->drone_count, delta_ms);
 
-    // 绘制轨迹线
-    // graphics_draw_trajectories(ctrl->fleet, ctrl->drone_count,
-    //                            ctrl->current_formation);
-
     // 绘制安全告警
+    int has_warning = 0;
     if (ctrl->safety_result.boundary_violations > 0
      || ctrl->safety_result.distance_violations > 0) {
         graphics_draw_warnings(&ctrl->safety_result);
+        has_warning = 1;
     }
 
-    // 绘制右侧信息面板（显示活跃无人机数，而非总数）
+    // 绘制右侧信息面板
     int active_count = (ctrl->current_formation != NULL)
         ? ctrl->current_formation->drone_count : 0;
     graphics_draw_panel(ctrl->fleet, active_count,
                         ctrl->sim_state, ctrl->current_formation,
-                        ctrl->sim_elapsed_ms);
+                        ctrl->sim_elapsed_ms,
+                        ctrl->sim_speed,
+                        ctrl->selected_color,
+                        ctrl->selected_light_mode,
+                        has_warning);
+
+    // 底部状态栏
+    graphics_draw_bottom_bar(ctrl->drone_count, active_count,
+                             "按 H 查看历史 | 按 T 输入文字");
 
     // 刷新到屏幕
     graphics_flush();

@@ -98,21 +98,45 @@ int ui_confirm(const char* message)
 
 int ui_show_menu(void)
 {
-    // 简化菜单：控制台直接打印选项并等待按键
-    system("cls");
+    /* 自包含菜单：设置 UTF-8 代码页，使用标准 printf 输出 */
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+
+    /* ANSI 清屏（Windows 10+ 支持） */
+    printf("\033[2J\033[H");
+
+    /* 使用 UTF-8 编码的框线字符绘制菜单 */
     printf("\n");
-    printf("  ╔══════════════════════════════════════╗\n");
-    printf("  ║     无人机编队灯光秀模拟系统         ║\n");
-    printf("  ╠══════════════════════════════════════╣\n");
-    printf("  ║                                      ║\n");
-    printf("  ║  [1] 开始新模拟                      ║\n");
-    printf("  ║  [2] 加载回放文件                    ║\n");
-    printf("  ║  [3] 设置无人机数量                  ║\n");
-    printf("  ║  [4] 帮助                            ║\n");
-    printf("  ║  [5] 退出                            ║\n");
-    printf("  ║                                      ║\n");
-    printf("  ╚══════════════════════════════════════╝\n");
-    printf("\n  请选择 (1-5): ");
+    printf("  \xe2\x95\x94"); for (int i = 0; i < 38; i++) printf("\xe2\x95\x90");
+    printf("\xe2\x95\x97\n");
+
+    printf("  \xe2\x95\x91                                      \xe2\x95\x91\n");
+
+    printf("  \xe2\x95\x91   \xe6\x97\xa0\xe4\xba\xba\xe6\x9c\xba\xe7\xbc\x96\xe9\x98\x9f"
+           "\xe7\x81\xaf\xe5\x85\x89\xe7\xa7\x80\xe6\xa8\xa1\xe6\x8b\x9f\xe7\xb3\xbb\xe7\xbb\x9f"
+           "      \xe2\x95\x91\n");
+
+    printf("  \xe2\x95\x91                                      \xe2\x95\x91\n");
+    printf("  \xe2\x95\xa0"); for (int i = 0; i < 38; i++) printf("\xe2\x95\x90");
+    printf("\xe2\x95\xa3\n");
+
+    printf("  \xe2\x95\x91                                      \xe2\x95\x91\n");
+    printf("  \xe2\x95\x91  [1] \xe5\xbc\x80\xe5\xa7\x8b\xe6\x96\xb0\xe6\xa8\xa1\xe6\x8b\x9f"
+           "                      \xe2\x95\x91\n");
+    printf("  \xe2\x95\x91  [2] \xe5\x8a\xa0\xe8\xbd\xbd\xe5\x9b\x9e\xe6\x94\xbe\xe6\x96\x87\xe4\xbb\xb6"
+           "                    \xe2\x95\x91\n");
+    printf("  \xe2\x95\x91  [3] \xe8\xae\xbe\xe7\xbd\xae\xe6\x97\xa0\xe4\xba\xba\xe6\x9c\xba\xe6\x95\xb0"
+           "\xe9\x87\x8f                  \xe2\x95\x91\n");
+    printf("  \xe2\x95\x91  [4] \xe5\xb8\xae\xe5\x8a\xa9"
+           "                            \xe2\x95\x91\n");
+    printf("  \xe2\x95\x91  [5] \xe9\x80\x80\xe5\x87\xba"
+           "                            \xe2\x95\x91\n");
+    printf("  \xe2\x95\x91                                      \xe2\x95\x91\n");
+
+    printf("  \xe2\x95\x9a"); for (int i = 0; i < 38; i++) printf("\xe2\x95\x90");
+    printf("\xe2\x95\x9d\n");
+
+    printf("\n  \xe8\xaf\xb7\xe9\x80\x89\xe6\x8b\xa9 (1-5): ");
     fflush(stdout);
 
     int ch = _getch();
