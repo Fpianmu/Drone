@@ -91,19 +91,32 @@ void graphics_draw_warnings(const SafetyResult* result);
 /**
  * @brief 绘制右侧信息面板
  *        - 模拟状态、运行时间、速度
- *        - 无人机数量、当前编队、灯光模式
- *        - 按键提示
+ *        - 无人机数量、当前编队、灯光颜色/模式
+ *        - 按键提示、安全状态
  * @param fleet      无人机编队
  * @param count      无人机数量
  * @param state      当前模拟状态
  * @param formation  当前编队（可为NULL）
  * @param elapsed_ms 已运行时间（ms）
+ * @param sim_speed  当前模拟速度倍率
+ * @param light_color 当前灯光颜色
+ * @param light_mode  当前灯光模式
+ * @param has_warning 是否有安全警告
  */
 void graphics_draw_panel(Drone* fleet[], int count, SimState state,
-                         const Formation* formation, int elapsed_ms);
+                         const Formation* formation, int elapsed_ms,
+                         float sim_speed, LightColor light_color,
+                         LightMode light_mode, int has_warning);
 
 /** @brief 显示启动欢迎界面（阻塞等待按键） */
 void graphics_show_welcome(void);
+
+/** @brief 绘制顶部标题栏 */
+void graphics_draw_title_bar(SimState state, int elapsed_ms);
+
+/** @brief 绘制底部状态栏 */
+void graphics_draw_bottom_bar(int drone_count, int active_count,
+                              const char* hint_text);
 
 /* ==================== 工具函数 ==================== */
 
