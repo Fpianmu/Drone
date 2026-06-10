@@ -670,7 +670,10 @@ int gen_image(Point2f center, float char_size, const char* filename,
 
     // 打开文件
     FILE* fp = fopen(filename, "rb");
-    if (fp == NULL) return 0;
+    if (fp == NULL) {
+        printf("[IMAGE] 无法打开: %s\n", filename);
+        return 0;
+    }
 
     // 读取 BITMAPFILEHEADER（14 字节）
     unsigned char bfType[2];
@@ -697,35 +700,27 @@ int gen_image(Point2f center, float char_size, const char* filename,
     int rowSize = ((biWidth * (biBitCount / 8) + 3) / 4) * 4;  // 对齐到4字节
     int bpp     = biBitCount / 8;   // 每像素字节数
 
-    // 计算输出网格（和文字编队相同思路：格子数匹配无人机数）
+    // 输出网格直接用舞台尺寸（40行 × 比例），保证填满表演区
     float aspect = (float)biWidth / (float)biHeight;
-    int maxW = STAGE_COLS - 6, maxH = STAGE_ROWS - 6;
-    int outH = (int)(sqrtf((float)(count * 5 / 2) / aspect));
+    int outH = STAGE_ROWS - 4;    // 36 行，充分利用舞台高度
     int outW = (int)(outH * aspect);
-    if (outW < 2) outW = 2;
-    if (outH < 2) outH = 2;
-    if (outW > maxW) { outW = maxW; outH = (int)(outW / aspect); }
-    if (outH > maxH) { outH = maxH; outW = (int)(outH * aspect); }
+    if (outW < 1) outW = 1;
+    if (outW > STAGE_COLS - 4) { outW = STAGE_COLS - 4; outH = (int)(outW / aspect); }
 
     float cellW = (float)biWidth  / outW;
     float cellH = (float)biHeight / outH;
 
-    // 读入像素数据（只读需要的行，节省内存）
-    // 先生成灰度阵列（outH × outW 的亮度采样）
+    // 读入像素数据并生成灰度阵列
     int* cellSum = (int*)calloc(outW * outH, sizeof(int));
     int* cellCnt = (int*)calloc(outW * outH, sizeof(int));
-    if (cellSum == NULL || cellCnt == NULL) {
-        free(cellSum); free(cellCnt); fclose(fp); return 0;
-    }
-
     unsigned char* rowBuf = (unsigned char*)malloc(rowSize);
-    if (rowBuf == NULL) {
-        free(cellSum); free(cellCnt); fclose(fp); return 0;
+    if (cellSum == NULL || cellCnt == NULL || rowBuf == NULL) {
+        free(cellSum); free(cellCnt); free(rowBuf); fclose(fp); return 0;
     }
 
     for (unsigned int y = 0; y < biHeight; y++) {
         fread(rowBuf, rowSize, 1, fp);
-        int gy = (int)(y * cellH);  // 对应到输出网格的行
+        int gy = (int)(y * cellH);
         if (gy >= outH) gy = outH - 1;
         for (unsigned int x = 0; x < biWidth; x++) {
             int gx = (int)(x * cellW);
@@ -736,22 +731,16 @@ int gen_image(Point2f center, float char_size, const char* filename,
             cellCnt[gy * outW + gx]++;
         }
     }
-
     free(rowBuf);
     fclose(fp);
 
-    // 计算阈值（平均灰度 × 0.7，让暗部变亮部不变）
-    long long total = 0;
-    int cells = 0;
-    for (int i = 0; i < outW * outH; i++) {
-        if (cellCnt[i] > 0) { total += cellSum[i] / cellCnt[i]; cells++; }
-    }
-    int threshold = (cells > 0) ? (int)(total / cells * 0.7f) : 128;
-    if (threshold < 40) threshold = 40;
+    // 固定阈值 128：白底(>128)不画，黑笔画(<128)才画
+    // 这样白色背景的简笔画、logo 能正确识别
+    int threshold = 128;
 
-    // 生成无人机位置
-    float cell_size = (float)maxW / outW;
-    float cell_h    = (float)maxH / outH;
+    // 生成无人机位置（填满舞台）
+    float cell_size = (float)(STAGE_COLS - 4) / outW;
+    float cell_h    = (float)(STAGE_ROWS - 4) / outH;
     if (cell_h < cell_size) cell_size = cell_h;
     if (cell_size < 1.0f) cell_size = 1.0f;
 
