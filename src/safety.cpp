@@ -150,8 +150,8 @@ void safety_avoid_collisions(Drone* fleet[], int count,
 {
     if (fleet == NULL || zone == NULL) return;
 
-    float avoid_dist = (float)zone->min_distance * 0.5f;
-    if (avoid_dist < 1.0f) avoid_dist = 1.0f;  // 至少1格
+    // 仅防止完全重叠（间距<0.5格），不干预文字编队的正常排列（间距≥1格）
+    float avoid_dist = 0.5f;
 
     for (int i = 0; i < count; i++) {
         if (fleet[i] == NULL || !fleet[i]->is_active) continue;
