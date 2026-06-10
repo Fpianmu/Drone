@@ -734,9 +734,8 @@ int gen_image(Point2f center, float char_size, const char* filename,
     free(rowBuf);
     fclose(fp);
 
-    // 固定阈值 128：白底(>128)不画，黑笔画(<128)才画
-    // 这样白色背景的简笔画、logo 能正确识别
-    int threshold = 128;
+    // 阈值 128：暗像素（<128）放无人机，亮像素（≥128）忽略
+    // PCtoLCD2002 默认逻辑：白底黑画 → 无人机勾勒暗色轮廓
 
     // 生成无人机位置（填满舞台）
     float cell_size = (float)(STAGE_COLS - 4) / outW;
@@ -753,7 +752,8 @@ int gen_image(Point2f center, float char_size, const char* filename,
     for (int gy = 0; gy < outH && idx < count; gy++) {
         for (int gx = 0; gx < outW && idx < count; gx++) {
             int ci = gy * outW + gx;
-            if (cellCnt[ci] > 0 && (cellSum[ci] / cellCnt[ci]) > threshold) {
+            // 暗像素 → 放无人机（和 PCtoLCD2002 一致：白底黑画取暗点）
+            if (cellCnt[ci] > 0 && (cellSum[ci] / cellCnt[ci]) < 128) {
                 out[idx].x = start_x + gx * cell_size + cell_size / 2.0f;
                 out[idx].y = start_y + gy * cell_size + cell_size / 2.0f;
                 idx++;
