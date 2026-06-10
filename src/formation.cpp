@@ -608,25 +608,26 @@ int gen_text(Point2f center, float char_size, const char* text,
     SIZE ts;
     GetTextExtentPoint32W(hSrcDC, wtext, wchars, &ts);
 
-    // 源位图：大字号渲染全文
-    HBITMAP hSrcBmp = CreateCompatibleBitmap(hScrDC, ts.cx + 8, ts.cy + 8);
+    // 源位图：用字体高度确保文字完整不裁切
+    int srcW = ts.cx + 4, srcH = fontH + 4;
+    HBITMAP hSrcBmp = CreateCompatibleBitmap(hScrDC, srcW, srcH);
     SelectObject(hSrcDC, hSrcBmp);
-    RECT rc = {0, 0, ts.cx + 8, ts.cy + 8};
+    RECT rc = {0, 0, srcW, srcH};
     FillRect(hSrcDC, &rc, (HBRUSH)GetStockObject(BLACK_BRUSH));
-    TextOutW(hSrcDC, 4, 4, wtext, wchars);
+    TextOutW(hSrcDC, 2, 2, wtext, wchars);  // 从(2,2)开始，留白边
 
-    // 目标网格：固定高度 30 行，宽度按比例
+    // 目标网格：固定高度 30 行，宽度按文字比例
     int outH = 30;
-    int outW = (int)((float)outH * ts.cx / ts.cy);
+    int outW = (int)((float)outH * ts.cx / fontH);
     if (outW < 2) outW = 2;
-    if (outW > STAGE_COLS - 6) { outW = STAGE_COLS - 6; outH = (int)((float)outW * ts.cy / ts.cx); }
+    if (outW > STAGE_COLS - 6) { outW = STAGE_COLS - 6; outH = (int)((float)outW * fontH / ts.cx); }
 
-    // StretchBlt 缩到目标网格（和 PCtoLCD2002 取模一致）
+    // StretchBlt：用字体实际高度做源范围
     HBITMAP hDstBmp = CreateCompatibleBitmap(hScrDC, outW, outH);
     SelectObject(hDstDC, hDstBmp);
     SetStretchBltMode(hDstDC, COLORONCOLOR);
     StretchBlt(hDstDC, 0, 0, outW, outH,
-               hSrcDC, 0, 0, ts.cx + 4, ts.cy + 4, SRCCOPY);
+               hSrcDC, 0, 0, srcW, srcH, SRCCOPY);
 
     // 逐像素采样 → 白像素放无人机
     float cell_sz = (float)(STAGE_COLS - 6) / outW;
