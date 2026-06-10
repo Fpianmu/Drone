@@ -261,11 +261,12 @@ void ctrl_handle_command(Controller* ctrl, UICmd cmd)
             text[strcspn(text, "\r\n")] = '\0';
             if (strlen(text) == 0) break;
 
-            // 获取文字推荐的参数
+            // 获取文字推荐的参数（用宽字符数而非字节数）
+            int wclen = MultiByteToWideChar(CP_UTF8, 0, text, -1, NULL, 0);
+            int char_count = (wclen > 1) ? (wclen - 1) : (int)strlen(text);
             int   opt_count;
             float opt_scale;
-            pattern_recommend(PAT_TEXT, (int)strlen(text),
-                              &opt_count, &opt_scale);
+            pattern_recommend(PAT_TEXT, char_count, &opt_count, &opt_scale);
 
             // 销毁旧编队，创建文字编队
             Point2f center = { STAGE_COLS / 2.0f, STAGE_ROWS / 2.0f };

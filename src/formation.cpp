@@ -601,8 +601,8 @@ int gen_text(Point2f center, float char_size, const char* text,
     HDC hMemDC    = CreateCompatibleDC(hScreenDC);
     if (hMemDC == NULL) { free(wtext); ReleaseDC(NULL, hScreenDC); return 0; }
 
-    /* ── 3. 创建字体（等宽，适合像素化） ── */
-    int fontHeight = 48;  // 渲染高度（像素）
+    /* ── 3. 创建字体（高度适配舞台尺寸） ── */
+    int fontHeight = 24;  // 渲染高度（像素），越小字越矮但不会超出舞台
     HFONT hFont = CreateFontW(
         fontHeight, 0, 0, 0,
         FW_BOLD,           // 粗体，笔画更清晰
@@ -692,17 +692,10 @@ int gen_text(Point2f center, float char_size, const char* text,
     float cellW = (float)bmpW / outW;
     float cellH = (float)bmpH / outH;
 
-    // 亮度阈值：用平均亮度作自适应阈值
-    unsigned long long sum = 0;
-    for (int i = 0; i < bmpW * bmpH; i++) {
-        BYTE r = pixels[i * 4 + 2];  // R 分量
-        BYTE g = pixels[i * 4 + 1];  // G 分量
-        BYTE b = pixels[i * 4 + 0];  // B 分量
-        sum += (r + g + b) / 3;
-    }
-    int avgBright = (int)(sum / (bmpW * bmpH));
-    int threshold = avgBright + (255 - avgBright) / 3;  // 高于均值 1/3
-    if (threshold < 30) threshold = 30;
+    // 亮度阈值：固定低阈值，确保细笔画也能采样到
+    // 黑底白字的情况下，笔画区域亮度通常 > 100
+    // 用较低阈值（60）捕获全部笔画，包括抗锯齿边缘
+    int threshold = 60;
 
     /* ── 8. 采样并生成无人机位置 ── */
     float start_x = center.x - (outW * char_size) / 2.0f;
