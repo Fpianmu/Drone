@@ -367,14 +367,22 @@ void ctrl_handle_command(Controller* ctrl, UICmd cmd)
             filename[strcspn(filename, "\r\n")] = '\0';
             if (strlen(filename) == 0) { ctrl->sim_state = prev_state; break; }
 
-            // 先检查文件
+            // 先检查文件（当前目录 + 绝对路径都试）
             FILE* test = fopen(filename, "rb");
             if (test == NULL) {
-                printf("[错误] 文件不存在: %s\n", filename);
-                printf("请确认文件放在 exe 同目录下，按任意键继续...");
-                _getch();
-                ctrl->sim_state = prev_state;
-                break;
+                // 试试 E 盘绝对路径
+                char full[128];
+                snprintf(full, sizeof(full), "E:\\C语言课程设计\\%s", filename);
+                test = fopen(full, "rb");
+                if (test == NULL) {
+                    printf("[错误] 文件不存在: %s\n当前目录也找不到，按任意键继续...", filename);
+                    _getch();
+                    ctrl->sim_state = prev_state;
+                    break;
+                }
+                // 找到了，用完整路径
+                strncpy(filename, full, 63);
+                filename[63] = '\0';
             }
 
             // 检查 BMP 格式

@@ -758,6 +758,18 @@ int gen_image(Point2f center, float char_size, const char* filename,
         }
     }
 
+    // 调试：把结果写到文件
+    {
+        FILE* dbg = fopen("bmp_debug.txt", "w");
+        if (dbg) {
+            fprintf(dbg, "文件: %s\n尺寸: %ux%u, %u位\n",
+                    filename, biWidth, biHeight, biBitCount);
+            fprintf(dbg, "输出网格: %dx%d, 阈值<128, 生成%d架无人机\n",
+                    outW, outH, idx);
+            fclose(dbg);
+        }
+    }
+
     free(cellSum);
     free(cellCnt);
     return idx;
