@@ -356,13 +356,37 @@ void ctrl_handle_command(Controller* ctrl, UICmd cmd)
 
     case UI_CMD_IMAGE:
         {
-            // 读取 BMP 文件名，加载为图片编队
+            // 暂停模拟，回到文本模式方便输入
+            SimState prev_state = ctrl->sim_state;
+            ctrl->sim_state = STATE_PAUSED;
+
             char filename[64];
-            printf("\n输入BMP文件名(如 sample.bmp): ");
+            printf("\n输入BMP文件名(放在exe同目录): ");
             fflush(stdout);
             fgets(filename, sizeof(filename), stdin);
             filename[strcspn(filename, "\r\n")] = '\0';
-            if (strlen(filename) == 0) break;
+            if (strlen(filename) == 0) { ctrl->sim_state = prev_state; break; }
+
+            // 先检查文件
+            FILE* test = fopen(filename, "rb");
+            if (test == NULL) {
+                printf("[错误] 文件不存在: %s\n", filename);
+                printf("请确认文件放在 exe 同目录下，按任意键继续...");
+                _getch();
+                ctrl->sim_state = prev_state;
+                break;
+            }
+
+            // 检查 BMP 格式
+            char magic[3] = {0};
+            fread(magic, 2, 1, test);
+            fclose(test);
+            if (magic[0] != 'B' || magic[1] != 'M') {
+                printf("[错误] %s 不是BMP格式\n请用画图另存为24位位图，按任意键继续...", filename);
+                _getch();
+                ctrl->sim_state = prev_state;
+                break;
+            }
 
             formation_destroy(ctrl->current_formation);
             int   opt_count;
@@ -373,8 +397,9 @@ void ctrl_handle_command(Controller* ctrl, UICmd cmd)
                 filename, PAT_IMAGE, center, opt_scale, 0.0f,
                 opt_count, filename);
             if (ctrl->current_formation == NULL) {
-                printf("\n[错误] 无法加载图片: %s", filename);
+                printf("[错误] 无法解析图片，请确认是24/32位BMP\n按任意键继续...");
                 _getch();
+                ctrl->sim_state = prev_state;
                 break;
             }
             ctrl->selected_pattern = PAT_IMAGE;

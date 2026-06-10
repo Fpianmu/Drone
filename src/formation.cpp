@@ -670,19 +670,13 @@ int gen_image(Point2f center, float char_size, const char* filename,
 
     // 打开文件
     FILE* fp = fopen(filename, "rb");
-    if (fp == NULL) {
-        printf("[BMP] 文件不存在: %s (当前目录下找不到这个文件)\n", filename);
-        return 0;
-    }
+    if (fp == NULL) return 0;
 
     // 读取 BITMAPFILEHEADER（14 字节）
     unsigned char bfType[2] = {0,0};
     unsigned int  bfSize = 0, bfOffBits = 0;
     if (fread(bfType, 2, 1, fp) != 1) { fclose(fp); return 0; }
-    if (bfType[0] != 'B' || bfType[1] != 'M') {
-        printf("[BMP] 不是BMP格式: %s\n", filename);
-        fclose(fp); return 0;
-    }
+    if (bfType[0] != 'B' || bfType[1] != 'M') { fclose(fp); return 0; }
     fread(&bfSize,    4, 1, fp);
     fseek(fp, 4, SEEK_CUR);
     fread(&bfOffBits, 4, 1, fp);
@@ -690,16 +684,12 @@ int gen_image(Point2f center, float char_size, const char* filename,
     // 读取 BITMAPINFOHEADER
     unsigned int biWidth = 0, biHeight = 0;
     unsigned short biBitCount = 0;
-    fseek(fp, 4, SEEK_CUR);  // biSize
+    fseek(fp, 4, SEEK_CUR);
     fread(&biWidth,  4, 1, fp);
     fread(&biHeight, 4, 1, fp);
-    fseek(fp, 2, SEEK_CUR);  // biPlanes
+    fseek(fp, 2, SEEK_CUR);
     fread(&biBitCount, 2, 1, fp);
-    if (biBitCount != 24 && biBitCount != 32) {
-        printf("[BMP] 只支持24/32位: %s 是%d位\n", filename, biBitCount);
-        fclose(fp); return 0;
-    }
-    printf("[BMP] %s: %ux%u, %u位 → 加载中...\n", filename, biWidth, biHeight, biBitCount);
+    if (biBitCount != 24 && biBitCount != 32) { fclose(fp); return 0; }
 
     // 跳到像素数据
     fseek(fp, bfOffBits, SEEK_SET);
