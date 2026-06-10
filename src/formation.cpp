@@ -558,191 +558,100 @@ int gen_random(Point2f center, float size, int count, Point2f out[])
 
 /* ==================== 文字编队生成器（GDI 渲染） ==================== */
 
-/**
- * @brief 使用 Windows GDI 将文字渲染为位图，降采样生成无人机编队
+/*
+ * 文字编队生成器 —— 逐字渲染为固定点阵（和旧版英文思路一致）
  *
- * 流程：
- *   1. UTF-8 文字 → MultiByteToWideChar → 宽字符
- *   2. 创建内存 DC + 位图，用 GDI TextOutW 渲染文字
- *   3. 读取位图像素，降采样为低分辨率点阵
- *   4. 按亮度二值化，亮的像素放置无人机
+ * 中文字符渲染到 16x16 px 小位图，ASCII 渲染到 9x16 px，
+ * 逐像素映射为无人机坐标。不用降采样、自适应网格。
+ * char_size 决定像素点在舞台上的间距（格子大小）。
  *
- * 优势：
- *   - 支持中文、英文、数字等所有 Windows 字体字符
- *   - 无需硬编码字库
- *   - 只用 GDI（Windows 自带），不依赖第三方库
- *   - 自动适配无人机数量
- *
- * @param center    文字区域中心
- * @param char_size  输出像素间距（字符格），决定文字大小
- * @param text       UTF-8 文字
- * @param count      可用无人机上限
- * @param out        输出位置数组
- * @return 实际使用的无人机数
+ * 每个"亮"像素 → 一架无人机，紧凑排列。
  */
 int gen_text(Point2f center, float char_size, const char* text,
              int count, Point2f out[])
 {
     if (text == NULL || count <= 0 || out == NULL) return 0;
+    if (strlen(text) == 0) return 0;
 
-    int text_len = (int)strlen(text);
-    if (text_len == 0) return 0;
-
-    /* ── 1. UTF-8 → 宽字符 ── */
+    // UTF-8 转宽字符
     int wlen = MultiByteToWideChar(CP_UTF8, 0, text, -1, NULL, 0);
-    if (wlen <= 1) return 0;  // 转换失败或空串
+    if (wlen <= 1) return 0;
     WCHAR* wtext = (WCHAR*)malloc(wlen * sizeof(WCHAR));
     if (wtext == NULL) return 0;
     MultiByteToWideChar(CP_UTF8, 0, text, -1, wtext, wlen);
-    int wchars = wlen - 1;  // 不含尾 '\0'
+    int wchars = wlen - 1;
 
-    /* ── 2. 创建内存 DC ── */
-    HDC hScreenDC = GetDC(NULL);
-    HDC hMemDC    = CreateCompatibleDC(hScreenDC);
-    if (hMemDC == NULL) { free(wtext); ReleaseDC(NULL, hScreenDC); return 0; }
+    // 创建 GDI 环境
+    HDC hScrDC = GetDC(NULL);
+    HDC hDC    = CreateCompatibleDC(hScrDC);
 
-    /* ── 3. 创建字体（64px 保证足够细节再降采样） ── */
-    int fontHeight = 64;  // 大字体渲染 → 降采样后保留笔画细节
-    HFONT hFont = CreateFontW(
-        fontHeight, 0, 0, 0,
-        FW_BOLD,           // 粗体，笔画更清晰
-        FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET,
-        OUT_TT_PRECIS,
-        CLIP_DEFAULT_PRECIS,
-        ANTIALIASED_QUALITY,
-        DEFAULT_PITCH | FF_DONTCARE,
-        L"SimHei"         // 黑体（支持中英文）
-    );
-    if (hFont == NULL) {
-        // SimHei 不可用时用系统默认字体
-        hFont = CreateFontW(fontHeight, 0, 0, 0, FW_BOLD,
+    // 像素格：中文 16x16，英文 9x16
+    int cellPX  = 16;
+    int wideW   = 16;
+    int narrowW = 9;
+
+    // 无抗锯齿字体 → 清晰的二值像素
+    HFONT hFont = CreateFontW(cellPX, 0, 0, 0, FW_NORMAL,
+        FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+        OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
+        NONANTIALIASED_QUALITY,
+        DEFAULT_PITCH | FF_DONTCARE, L"SimHei");
+    if (hFont == NULL)
+        hFont = CreateFontW(cellPX, 0, 0, 0, FW_NORMAL,
             FALSE, FALSE, FALSE, DEFAULT_CHARSET,
-            OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
-            DEFAULT_PITCH | FF_DONTCARE, L"Arial");
-    }
-    SelectObject(hMemDC, hFont);
+            OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
+            NONANTIALIASED_QUALITY,
+            DEFAULT_PITCH | FF_DONTCARE, L"Consolas");
+    SelectObject(hDC, hFont);
+    SetBkColor(hDC, RGB(0,0,0));
+    SetTextColor(hDC, RGB(255,255,255));
+    SetBkMode(hDC, OPAQUE);
 
-    /* ── 4. 测量文字尺寸 ── */
-    SIZE textSize;
-    GetTextExtentPoint32W(hMemDC, wtext, wchars, &textSize);
-    if (textSize.cx <= 0 || textSize.cy <= 0) {
-        DeleteObject(hFont); DeleteDC(hMemDC);
-        ReleaseDC(NULL, hScreenDC); free(wtext);
-        return 0;
-    }
+    // 小位图（只画一个字）
+    HBITMAP hBmp = CreateCompatibleBitmap(hScrDC, 20, 20);
+    SelectObject(hDC, hBmp);
 
-    /* ── 5. 创建位图 ── */
-    int bmpW = textSize.cx + 4;   // 加边距防止贴边
-    int bmpH = textSize.cy + 4;
-    HBITMAP hBmp = CreateCompatibleBitmap(hScreenDC, bmpW, bmpH);
-    SelectObject(hMemDC, hBmp);
+    // 计算总宽度（字符格数），用于居中
+    int total_cols = 0;
+    for (int i = 0; i < wchars; i++)
+        total_cols += (wtext[i] < 0x80) ? narrowW + 1 : wideW + 1;
 
-    // 黑底白字
-    SetBkColor(hMemDC,   RGB(0, 0, 0));
-    SetTextColor(hMemDC, RGB(255, 255, 255));
-    SetBkMode(hMemDC, OPAQUE);
+    float start_x = center.x - (total_cols - 1) * char_size / 2.0f;
+    float start_y = center.y - (cellPX - 1) * char_size / 2.0f;
+    float cur_x   = start_x;
+    int   idx     = 0;
 
-    // 填充黑色背景
-    RECT fill = { 0, 0, bmpW, bmpH };
-    HBRUSH hBrush = CreateSolidBrush(RGB(0, 0, 0));
-    FillRect(hMemDC, &fill, hBrush);
-    DeleteObject(hBrush);
+    // 逐字渲染到位图，逐像素读取
+    for (int ci = 0; ci < wchars && idx < count; ci++) {
+        int cw = (wtext[ci] < 0x80) ? narrowW : wideW;
 
-    // 绘制文字
-    TextOutW(hMemDC, 2, 2, wtext, wchars);
+        // 清空位图
+        RECT rc = {0, 0, 20, 20};
+        FillRect(hDC, &rc, (HBRUSH)GetStockObject(BLACK_BRUSH));
 
-    /* ── 6. 读取像素 ── */
-    BITMAPINFO bmi;
-    memset(&bmi, 0, sizeof(bmi));
-    bmi.bmiHeader.biSize     = sizeof(BITMAPINFOHEADER);
-    bmi.bmiHeader.biWidth    = bmpW;
-    bmi.bmiHeader.biHeight   = -bmpH;  // 负值 = 自上而下
-    bmi.bmiHeader.biPlanes   = 1;
-    bmi.bmiHeader.biBitCount = 32;
-    bmi.bmiHeader.biCompression = BI_RGB;
+        // 渲染单个字
+        TextOutW(hDC, 0, 0, &wtext[ci], 1);
 
-    BYTE* pixels = (BYTE*)malloc(bmpW * bmpH * 4);
-    if (pixels == NULL) {
-        DeleteObject(hBmp); DeleteObject(hFont);
-        DeleteDC(hMemDC); ReleaseDC(NULL, hScreenDC);
-        free(wtext);
-        return 0;
-    }
-    GetDIBits(hMemDC, hBmp, 0, bmpH, pixels, &bmi, DIB_RGB_COLORS);
-
-    /* ── 7. 根据可用无人机数计算输出网格 ── */
-    // 文字通常占其包围盒 30%~50% 的面积，所以总格数 ≈ count / 0.4
-    // 然后按宽高比分配，同时限制不超过舞台尺寸
-    float aspect = (float)bmpW / (float)bmpH;
-    int maxW = STAGE_COLS - 6;
-    int maxH = STAGE_ROWS - 6;
-
-    // 估算需要的总格数
-    int totalCells = count * 5 / 2;  // count / 0.4 ≈ count * 2.5
-    // 按宽高比拆分为 outW × outH
-    int outH = (int)(sqrtf((float)totalCells / aspect));
-    int outW = (int)(outH * aspect);
-    if (outW < 2) { outW = 2; outH = (int)(outW / aspect); }
-    if (outH < 2) { outH = 2; outW = (int)(outH * aspect); }
-
-    // 限制在舞台范围内
-    if (outW > maxW) { outW = maxW; outH = (int)(outW / aspect); }
-    if (outH > maxH) { outH = maxH; outW = (int)(outH * aspect); }
-
-    // 降采样因子
-    float cellW = (float)bmpW / outW;
-    float cellH = (float)bmpH / outH;
-
-    // 亮度阈值：黑底白字时笔画 > 100，用 60 捕获全部
-    int threshold = 60;
-
-    /* ── 8. 采样并生成无人机位置 ── */
-    // 用格子的实际大小做间距（保持字形比例）
-    float gridW = (float)maxW / outW;
-    float gridH = (float)maxH / outH;
-    float cell_size = (gridW < gridH) ? gridW : gridH;
-    if (cell_size < 1.0f) cell_size = 1.0f;
-
-    float total_w = outW * cell_size;
-    float total_h = outH * cell_size;
-    float start_x = center.x - total_w / 2.0f;
-    float start_y = center.y - total_h / 2.0f;
-
-    int idx = 0;
-    for (int gy = 0; gy < outH && idx < count; gy++) {
-        for (int gx = 0; gx < outW && idx < count; gx++) {
-            // 用最大值采样（不是平均值）—— 只要格内有一个亮像素就保留
-            // 这样细笔画不会被平均掉
-            int bx0 = (int)(gx * cellW);
-            int by0 = (int)(gy * cellH);
-            int bx1 = (int)((gx + 1) * cellW);
-            int by1 = (int)((gy + 1) * cellH);
-            if (bx1 > bmpW) bx1 = bmpW;
-            if (by1 > bmpH) by1 = bmpH;
-
-            int cellMax = 0;
-            for (int py = by0; py < by1; py++) {
-                for (int px = bx0; px < bx1; px++) {
-                    BYTE* p = &pixels[(py * bmpW + px) * 4];
-                    int bri = (p[2] + p[1] + p[0]) / 3;
-                    if (bri > cellMax) cellMax = bri;
+        // 逐像素：白像素 → 放置无人机
+        for (int py = 0; py < cellPX && idx < count; py++) {
+            for (int px = 0; px < cw && idx < count; px++) {
+                COLORREF c = GetPixel(hDC, px, py);
+                if (GetRValue(c) > 80) {
+                    out[idx].x = cur_x + px * char_size;
+                    out[idx].y = start_y + py * char_size;
+                    idx++;
                 }
             }
-            if (cellMax >= threshold) {
-                out[idx].x = start_x + gx * cell_size + cell_size / 2.0f;
-                out[idx].y = start_y + gy * cell_size + cell_size / 2.0f;
-                idx++;
-            }
         }
+
+        cur_x += (cw + 1) * char_size;  // +1 字符间距
     }
 
-    /* ── 9. 清理 ── */
-    free(pixels);
+    // 清理
     DeleteObject(hBmp);
     DeleteObject(hFont);
-    DeleteDC(hMemDC);
-    ReleaseDC(NULL, hScreenDC);
+    DeleteDC(hDC);
+    ReleaseDC(NULL, hScrDC);
     free(wtext);
 
     return idx;
