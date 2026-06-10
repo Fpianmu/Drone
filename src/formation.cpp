@@ -708,12 +708,15 @@ int gen_image(Point2f center, float char_size, const char* filename,
     float cellH = (float)biHeight / outH;
 
     // 读入像素数据并生成灰度阵列
-    int* cellSum = (int*)calloc(outW * outH, sizeof(int));
     int* cellCnt = (int*)calloc(outW * outH, sizeof(int));
     unsigned char* rowBuf = (unsigned char*)malloc(rowSize);
-    if (cellSum == NULL || cellCnt == NULL || rowBuf == NULL) {
-        free(cellSum); free(cellCnt); free(rowBuf); fclose(fp); return 0;
+    if (cellCnt == NULL || rowBuf == NULL) {
+        free(cellCnt); free(rowBuf); fclose(fp); return 0;
     }
+
+    // 取每个格内的最小亮度（而非平均），和 PCtoLCD2002 逻辑一致
+    int* cellMin = (int*)malloc(outW * outH * sizeof(int));
+    for (int i = 0; i < outW * outH; i++) cellMin[i] = 255;
 
     for (unsigned int y = 0; y < biHeight; y++) {
         fread(rowBuf, rowSize, 1, fp);
@@ -723,16 +726,16 @@ int gen_image(Point2f center, float char_size, const char* filename,
             int gx = (int)(x * cellW);
             if (gx >= outW) gx = outW - 1;
             unsigned char* p = &rowBuf[x * bpp];
-            int gray = (p[2] + p[1] + p[0]) / 3;  // BGR → 灰度
-            cellSum[gy * outW + gx] += gray;
-            cellCnt[gy * outW + gx]++;
+            int gray = (p[2] + p[1] + p[0]) / 3;
+            int ci = gy * outW + gx;
+            if (gray < cellMin[ci]) cellMin[ci] = gray;
+            cellCnt[ci]++;
         }
     }
     free(rowBuf);
     fclose(fp);
 
-    // 阈值 128：暗像素（<128）放无人机，亮像素（≥128）忽略
-    // PCtoLCD2002 默认逻辑：白底黑画 → 无人机勾勒暗色轮廓
+    // 阈值 128：格内最小亮度 < 128 → 有暗色笔画 → 放无人机
 
     // 生成无人机位置（填满舞台）
     float cell_size = (float)(STAGE_COLS - 4) / outW;
@@ -749,8 +752,8 @@ int gen_image(Point2f center, float char_size, const char* filename,
     for (int gy = 0; gy < outH && idx < count; gy++) {
         for (int gx = 0; gx < outW && idx < count; gx++) {
             int ci = gy * outW + gx;
-            // 暗像素 → 放无人机（和 PCtoLCD2002 一致：白底黑画取暗点）
-            if (cellCnt[ci] > 0 && (cellSum[ci] / cellCnt[ci]) < 128) {
+            // 格内最小亮度 < 128 → 有暗笔画 → 放无人机
+            if (cellCnt[ci] > 0 && cellMin[ci] < 128) {
                 out[idx].x = start_x + gx * cell_size + cell_size / 2.0f;
                 out[idx].y = start_y + gy * cell_size + cell_size / 2.0f;
                 idx++;
@@ -758,19 +761,19 @@ int gen_image(Point2f center, float char_size, const char* filename,
         }
     }
 
-    // 调试：把结果写到文件
+    // 调试输出
     {
         FILE* dbg = fopen("bmp_debug.txt", "w");
         if (dbg) {
             fprintf(dbg, "文件: %s\n尺寸: %ux%u, %u位\n",
                     filename, biWidth, biHeight, biBitCount);
-            fprintf(dbg, "输出网格: %dx%d, 阈值<128, 生成%d架无人机\n",
+            fprintf(dbg, "输出网格: %dx%d, 最小值采样, 阈值<128, 生成%d架\n",
                     outW, outH, idx);
             fclose(dbg);
         }
     }
 
-    free(cellSum);
+    free(cellMin);
     free(cellCnt);
     return idx;
 }
