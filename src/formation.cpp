@@ -657,6 +657,126 @@ int gen_text(Point2f center, float char_size, const char* text,
     return idx;
 }
 
+/* ==================== BMP 图片编队 ==================== */
+
+/*
+ * 读取 24/32 位 BMP 文件，转灰度 → 自适应阈值二值化 → 降采样
+ * 亮像素放置无人机。纯手工解析 BMP 文件头，不调任何图像库。
+ */
+int gen_image(Point2f center, float char_size, const char* filename,
+              int count, Point2f out[])
+{
+    if (filename == NULL || count <= 0 || out == NULL) return 0;
+
+    // 打开文件
+    FILE* fp = fopen(filename, "rb");
+    if (fp == NULL) return 0;
+
+    // 读取 BITMAPFILEHEADER（14 字节）
+    unsigned char bfType[2];
+    unsigned int  bfSize, bfOffBits;
+    fread(bfType, 2, 1, fp);
+    if (bfType[0] != 'B' || bfType[1] != 'M') { fclose(fp); return 0; }
+    fread(&bfSize,    4, 1, fp);
+    fseek(fp, 4, SEEK_CUR);  // 跳过保留字段
+    fread(&bfOffBits, 4, 1, fp);
+
+    // 读取 BITMAPINFOHEADER（40 字节）
+    unsigned int biWidth, biHeight;
+    unsigned short biBitCount;
+    fseek(fp, 4, SEEK_CUR);  // 跳过 biSize
+    fread(&biWidth,  4, 1, fp);
+    fread(&biHeight, 4, 1, fp);
+    fseek(fp, 2, SEEK_CUR);  // biPlanes
+    fread(&biBitCount, 2, 1, fp);
+    if (biBitCount != 24 && biBitCount != 32) { fclose(fp); return 0; }
+
+    // 跳到像素数据
+    fseek(fp, bfOffBits, SEEK_SET);
+
+    int rowSize = ((biWidth * (biBitCount / 8) + 3) / 4) * 4;  // 对齐到4字节
+    int bpp     = biBitCount / 8;   // 每像素字节数
+
+    // 计算输出网格（和文字编队相同思路：格子数匹配无人机数）
+    float aspect = (float)biWidth / (float)biHeight;
+    int maxW = STAGE_COLS - 6, maxH = STAGE_ROWS - 6;
+    int outH = (int)(sqrtf((float)(count * 5 / 2) / aspect));
+    int outW = (int)(outH * aspect);
+    if (outW < 2) outW = 2;
+    if (outH < 2) outH = 2;
+    if (outW > maxW) { outW = maxW; outH = (int)(outW / aspect); }
+    if (outH > maxH) { outH = maxH; outW = (int)(outH * aspect); }
+
+    float cellW = (float)biWidth  / outW;
+    float cellH = (float)biHeight / outH;
+
+    // 读入像素数据（只读需要的行，节省内存）
+    // 先生成灰度阵列（outH × outW 的亮度采样）
+    int* cellSum = (int*)calloc(outW * outH, sizeof(int));
+    int* cellCnt = (int*)calloc(outW * outH, sizeof(int));
+    if (cellSum == NULL || cellCnt == NULL) {
+        free(cellSum); free(cellCnt); fclose(fp); return 0;
+    }
+
+    unsigned char* rowBuf = (unsigned char*)malloc(rowSize);
+    if (rowBuf == NULL) {
+        free(cellSum); free(cellCnt); fclose(fp); return 0;
+    }
+
+    for (unsigned int y = 0; y < biHeight; y++) {
+        fread(rowBuf, rowSize, 1, fp);
+        int gy = (int)(y * cellH);  // 对应到输出网格的行
+        if (gy >= outH) gy = outH - 1;
+        for (unsigned int x = 0; x < biWidth; x++) {
+            int gx = (int)(x * cellW);
+            if (gx >= outW) gx = outW - 1;
+            unsigned char* p = &rowBuf[x * bpp];
+            int gray = (p[2] + p[1] + p[0]) / 3;  // BGR → 灰度
+            cellSum[gy * outW + gx] += gray;
+            cellCnt[gy * outW + gx]++;
+        }
+    }
+
+    free(rowBuf);
+    fclose(fp);
+
+    // 计算阈值（平均灰度 × 0.7，让暗部变亮部不变）
+    long long total = 0;
+    int cells = 0;
+    for (int i = 0; i < outW * outH; i++) {
+        if (cellCnt[i] > 0) { total += cellSum[i] / cellCnt[i]; cells++; }
+    }
+    int threshold = (cells > 0) ? (int)(total / cells * 0.7f) : 128;
+    if (threshold < 40) threshold = 40;
+
+    // 生成无人机位置
+    float cell_size = (float)maxW / outW;
+    float cell_h    = (float)maxH / outH;
+    if (cell_h < cell_size) cell_size = cell_h;
+    if (cell_size < 1.0f) cell_size = 1.0f;
+
+    float total_w = outW * cell_size;
+    float total_h = outH * cell_size;
+    float start_x = center.x - total_w / 2.0f;
+    float start_y = center.y - total_h / 2.0f;
+
+    int idx = 0;
+    for (int gy = 0; gy < outH && idx < count; gy++) {
+        for (int gx = 0; gx < outW && idx < count; gx++) {
+            int ci = gy * outW + gx;
+            if (cellCnt[ci] > 0 && (cellSum[ci] / cellCnt[ci]) > threshold) {
+                out[idx].x = start_x + gx * cell_size + cell_size / 2.0f;
+                out[idx].y = start_y + gy * cell_size + cell_size / 2.0f;
+                idx++;
+            }
+        }
+    }
+
+    free(cellSum);
+    free(cellCnt);
+    return idx;
+}
+
 /* ==================== 统一调度接口 ==================== */
 
 int pattern_generate(PatternType type, Point2f center,
@@ -690,6 +810,9 @@ int pattern_generate(PatternType type, Point2f center,
     case PAT_RANDOM:    generated = gen_random(center, scale, drone_count, out_positions);   break;
     case PAT_TEXT:      generated = gen_text(center, scale / 3.0f,
                                          text ? text : "HI",
+                                         drone_count, out_positions); break;
+    case PAT_IMAGE:     generated = gen_image(center, scale / 3.0f,
+                                         text ? text : "sample.bmp",
                                          drone_count, out_positions); break;
     default:
         // 未知图案类型 → 返回0
@@ -745,6 +868,8 @@ void pattern_recommend(PatternType type, int text_len,
         if (*out_count < 80)  *out_count = 80;
         *out_scale = 3.0f;   // 仅作后备，实际格子数由 count 决定
         break;
+    case PAT_IMAGE:
+        *out_count = 200;  *out_scale = 3.0f;  break;
     default:
         *out_count = 20;  *out_scale = 15.0f; break;
     }

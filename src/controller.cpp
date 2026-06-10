@@ -354,6 +354,40 @@ void ctrl_handle_command(Controller* ctrl, UICmd cmd)
         }
         break;
 
+    case UI_CMD_IMAGE:
+        {
+            // 读取 BMP 文件名，加载为图片编队
+            char filename[64];
+            printf("\n输入BMP文件名(如 sample.bmp): ");
+            fflush(stdout);
+            fgets(filename, sizeof(filename), stdin);
+            filename[strcspn(filename, "\r\n")] = '\0';
+            if (strlen(filename) == 0) break;
+
+            formation_destroy(ctrl->current_formation);
+            int   opt_count;
+            float opt_scale;
+            pattern_recommend(PAT_IMAGE, 0, &opt_count, &opt_scale);
+            Point2f center = { STAGE_COLS / 2.0f, STAGE_ROWS / 2.0f };
+            ctrl->current_formation = formation_create(
+                filename, PAT_IMAGE, center, opt_scale, 0.0f,
+                opt_count, filename);
+            if (ctrl->current_formation == NULL) {
+                printf("\n[错误] 无法加载图片: %s", filename);
+                _getch();
+                break;
+            }
+            ctrl->selected_pattern = PAT_IMAGE;
+            history_add(ctrl);
+            int use = ctrl->current_formation->drone_count;
+            for (int i = 0; i < ctrl->drone_count; i++)
+                ctrl->fleet[i]->is_active = (i < use) ? 1 : 0;
+            traj_from_formation(ctrl->fleet, use,
+                ctrl->current_formation, ctrl->trajectories,
+                DEFAULT_SPEED, ctrl->selected_color, ctrl->selected_light_mode);
+        }
+        break;
+
     case UI_CMD_HISTORY:
         {
             // 循环切换到最近的历史编队

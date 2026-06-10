@@ -125,6 +125,7 @@ typedef enum {
     PAT_GRID,          // 矩形网格
     PAT_RANDOM,        // 随机散布
     PAT_TEXT,          // 文字编队（GDI 渲染后降采样）
+    PAT_IMAGE,         // BMP 图片像素编队
 } PatternType;
 
 // 模拟状态 —— 控制主循环的行为

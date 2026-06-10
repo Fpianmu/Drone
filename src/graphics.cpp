@@ -531,6 +531,7 @@ void graphics_draw_panel(Drone* fleet[], int count, SimState state,
         case PAT_GRID:     pn = "网格";    break;
         case PAT_RANDOM:   pn = "随机散布"; break;
         case PAT_TEXT:     pn = formation->display_text; break;
+        case PAT_IMAGE:    pn = "BMP图片"; break;
         default:           break;
         }
         fb_put_wchar(px, py, CON_CYAN, L'\x2551');

@@ -87,6 +87,13 @@ int gen_random   (Point2f center, float size, int count, Point2f out[]);
 int gen_text(Point2f center, float char_size, const char* text,
              int count, Point2f out[]);
 
+/*
+ * BMP 图片编队：读取 BMP 文件，转灰度 → 降采样 → 无人机排列
+ * 不依赖任何第三方库，纯 Windows API + 位图文件头解析
+ */
+int gen_image(Point2f center, float char_size, const char* filename,
+              int count, Point2f out[]);
+
 // 绕 center 旋转一个点（旋转矩阵）。
 void rotate_point(float cx, float cy, float x, float y, float deg,
                   float* out_x, float* out_y);

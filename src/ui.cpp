@@ -51,6 +51,7 @@ UICmd ui_poll_input(void)
     case 'b': case 'B':     return UI_CMD_TOGGLE_BLINK;
     case 't': case 'T':     return UI_CMD_TEXT_INPUT;
     case 'h': case 'H':     return UI_CMD_HISTORY;
+    case 'i': case 'I':     return UI_CMD_IMAGE;
 
     case KEY_ESC:           return UI_CMD_EXIT;
     case KEY_ENTER:         return UI_CMD_START;   // 回车 = 开始
