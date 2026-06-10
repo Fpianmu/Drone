@@ -43,6 +43,7 @@
 #define MAX_FORMATIONS       50   // 最多编队数
 #define MAX_FILENAME_LEN    128   // 文件名最大长度
 #define MAX_WARNING_LEN     256   // 警告信息最大长度
+#define WARN_LOG_SIZE         6   // 面板警告日志最大行数
 
 // 帧率（毫秒/帧），≈20fps
 #define FRAME_INTERVAL_MS    50

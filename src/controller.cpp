@@ -184,6 +184,24 @@ void controller_run(Controller* ctrl)
         safety_check_all(ctrl->fleet, ctrl->drone_count,
                          ctrl->safety_zone, &ctrl->safety_result);
 
+        // 生成警告日志（面板滚动显示）
+        ctrl->warn_log_count = 0;
+        for (int i = 0; i < ctrl->safety_result.boundary_violations
+             && ctrl->warn_log_count < WARN_LOG_SIZE; i++) {
+            int id = ctrl->safety_result.boundary_ids[i];
+            snprintf(ctrl->warn_log[ctrl->warn_log_count], MAX_WARNING_LEN,
+                     "越界: D#%d 超出表演区", id);
+            ctrl->warn_log_count++;
+        }
+        for (int i = 0; i < ctrl->safety_result.distance_violations
+             && ctrl->warn_log_count < WARN_LOG_SIZE; i++) {
+            int a = ctrl->safety_result.pair_a[i];
+            int b = ctrl->safety_result.pair_b[i];
+            snprintf(ctrl->warn_log[ctrl->warn_log_count], MAX_WARNING_LEN,
+                     "碰撞: D#%d-D#%d 间距过近 → 已推开", a, b);
+            ctrl->warn_log_count++;
+        }
+
         // ── 第3步：渲染 ──
         ctrl_render_frame(ctrl, FRAME_INTERVAL_MS);
 
@@ -449,6 +467,9 @@ void ctrl_render_frame(Controller* ctrl, int delta_ms)
                         ctrl->selected_color,
                         ctrl->selected_light_mode,
                         has_warning);
+
+    // 面板警告日志（右侧面板下方6行滚动）
+    graphics_draw_warn_panel(ctrl->warn_log, ctrl->warn_log_count);
 
     // 底部状态栏
     graphics_draw_bottom_bar(ctrl->drone_count, active_count,

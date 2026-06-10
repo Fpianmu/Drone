@@ -657,6 +657,47 @@ void graphics_draw_panel(Drone* fleet[], int count, SimState state,
     fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x255D');     // ╝
 }
 
+/* ==================== 面板警告日志 ==================== */
+
+/*
+ * 在面板区域下方绘制最近的警告日志（最多 WARN_LOG_SIZE=6 行）
+ * 从下往上滚动显示，最新的在最下面
+ */
+void graphics_draw_warn_panel(char warn_log[][MAX_WARNING_LEN], int warn_count)
+{
+    int px = PANEL_LEFT + 1;
+    int py = STAGE_TOP + 30;   // 面板下部
+    int pw = PANEL_WIDTH - 2;
+
+    // 标题行
+    fb_printf(px, py, CON_YELLOW, "── 警告日志 ──");
+    py++;
+
+    if (warn_count == 0) {
+        fb_printf(px, py, CON_GREEN, "  暂无警告");
+        return;
+    }
+
+    // 显示最近的 WARN_LOG_SIZE 条（最多6条）
+    int start = (warn_count > WARN_LOG_SIZE) ? warn_count - WARN_LOG_SIZE : 0;
+    for (int i = start; i < warn_count && py < STAGE_TOP + STAGE_ROWS; i++) {
+        int idx = i % WARN_LOG_SIZE;
+        // 根据警告类型选颜色
+        ConsoleColor c = CON_YELLOW;
+        if (strstr(warn_log[idx], "越界") != NULL)
+            c = CON_RED;
+        else if (strstr(warn_log[idx], "推开") != NULL)
+            c = CON_CYAN;
+
+        // 截断过长的日志
+        char disp[PANEL_WIDTH + 1];
+        strncpy(disp, warn_log[idx], pw);
+        disp[pw] = '\0';
+        fb_puts(px, py, c, disp);
+        py++;
+    }
+}
+
 /* ==================== 欢迎界面 ==================== */
 
 void graphics_show_welcome(void)

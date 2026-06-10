@@ -77,6 +77,10 @@ typedef struct {
     // 历史记录
     FormationHistory history[HISTORY_SIZE];
     int              history_count;
+
+    // 警告日志（面板滚动显示）
+    char warn_log[WARN_LOG_SIZE][MAX_WARNING_LEN];
+    int  warn_log_count;     // 当前日志条数（最多 WARN_LOG_SIZE）
 } Controller;
 
 Controller* controller_create(void);
