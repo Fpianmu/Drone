@@ -583,74 +583,75 @@ int gen_text(Point2f center, float char_size, const char* text,
 
     // 创建 GDI 环境
     HDC hScrDC = GetDC(NULL);
-    HDC hDC    = CreateCompatibleDC(hScrDC);
+    HDC hSrcDC = CreateCompatibleDC(hScrDC);
+    HDC hDstDC = CreateCompatibleDC(hScrDC);
 
-    // 像素格：中文 16x16，英文 9x16
-    int cellPX  = 16;
-    int wideW   = 16;
-    int narrowW = 9;
-
-    // 无抗锯齿字体 → 清晰的二值像素
-    HFONT hFont = CreateFontW(cellPX, 0, 0, 0, FW_NORMAL,
+    // 大字号渲染到源位图（64px，保证笔画清晰）
+    int fontH = 64;
+    HFONT hFont = CreateFontW(fontH, 0, 0, 0, FW_BOLD,
         FALSE, FALSE, FALSE, DEFAULT_CHARSET,
         OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
-        NONANTIALIASED_QUALITY,
+        CLEARTYPE_QUALITY,
         DEFAULT_PITCH | FF_DONTCARE, L"SimHei");
     if (hFont == NULL)
-        hFont = CreateFontW(cellPX, 0, 0, 0, FW_NORMAL,
+        hFont = CreateFontW(fontH, 0, 0, 0, FW_BOLD,
             FALSE, FALSE, FALSE, DEFAULT_CHARSET,
             OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
-            NONANTIALIASED_QUALITY,
-            DEFAULT_PITCH | FF_DONTCARE, L"Consolas");
-    SelectObject(hDC, hFont);
-    SetBkColor(hDC, RGB(0,0,0));
-    SetTextColor(hDC, RGB(255,255,255));
-    SetBkMode(hDC, OPAQUE);
+            CLEARTYPE_QUALITY,
+            DEFAULT_PITCH | FF_DONTCARE, L"Arial");
+    SelectObject(hSrcDC, hFont);
+    SetBkColor(hSrcDC, RGB(0,0,0));
+    SetTextColor(hSrcDC, RGB(255,255,255));
+    SetBkMode(hSrcDC, OPAQUE);
 
-    // 小位图（只画一个字）
-    HBITMAP hBmp = CreateCompatibleBitmap(hScrDC, 20, 20);
-    SelectObject(hDC, hBmp);
+    // 测量文字
+    SIZE ts;
+    GetTextExtentPoint32W(hSrcDC, wtext, wchars, &ts);
 
-    // 计算总宽度（字符格数），用于居中
-    int total_cols = 0;
-    for (int i = 0; i < wchars; i++)
-        total_cols += (wtext[i] < 0x80) ? narrowW + 1 : wideW + 1;
+    // 源位图：大字号渲染全文
+    HBITMAP hSrcBmp = CreateCompatibleBitmap(hScrDC, ts.cx + 8, ts.cy + 8);
+    SelectObject(hSrcDC, hSrcBmp);
+    RECT rc = {0, 0, ts.cx + 8, ts.cy + 8};
+    FillRect(hSrcDC, &rc, (HBRUSH)GetStockObject(BLACK_BRUSH));
+    TextOutW(hSrcDC, 4, 4, wtext, wchars);
 
-    float start_x = center.x - (total_cols - 1) * char_size / 2.0f;
-    float start_y = center.y - (cellPX - 1) * char_size / 2.0f;
-    float cur_x   = start_x;
-    int   idx     = 0;
+    // 目标网格：固定高度 30 行，宽度按比例
+    int outH = 30;
+    int outW = (int)((float)outH * ts.cx / ts.cy);
+    if (outW < 2) outW = 2;
+    if (outW > STAGE_COLS - 6) { outW = STAGE_COLS - 6; outH = (int)((float)outW * ts.cy / ts.cx); }
 
-    // 逐字渲染到位图，逐像素读取
-    for (int ci = 0; ci < wchars && idx < count; ci++) {
-        int cw = (wtext[ci] < 0x80) ? narrowW : wideW;
+    // StretchBlt 缩到目标网格（和 PCtoLCD2002 取模一致）
+    HBITMAP hDstBmp = CreateCompatibleBitmap(hScrDC, outW, outH);
+    SelectObject(hDstDC, hDstBmp);
+    SetStretchBltMode(hDstDC, COLORONCOLOR);
+    StretchBlt(hDstDC, 0, 0, outW, outH,
+               hSrcDC, 0, 0, ts.cx, ts.cy, SRCCOPY);
 
-        // 清空位图
-        RECT rc = {0, 0, 20, 20};
-        FillRect(hDC, &rc, (HBRUSH)GetStockObject(BLACK_BRUSH));
+    // 逐像素采样 → 白像素放无人机
+    float cell_sz = (float)(STAGE_COLS - 6) / outW;
+    float cell_h  = (float)(STAGE_ROWS - 6) / outH;
+    if (cell_h < cell_sz) cell_sz = cell_h;
+    if (cell_sz < 1.0f) cell_sz = 1.0f;
+    float tw = outW * cell_sz, th = outH * cell_sz;
+    float sx = center.x - tw / 2.0f, sy = center.y - th / 2.0f;
 
-        // 渲染单个字
-        TextOutW(hDC, 0, 0, &wtext[ci], 1);
-
-        // 逐像素：白像素 → 放置无人机
-        for (int py = 0; py < cellPX && idx < count; py++) {
-            for (int px = 0; px < cw && idx < count; px++) {
-                COLORREF c = GetPixel(hDC, px, py);
-                if (GetRValue(c) > 80) {
-                    out[idx].x = cur_x + px * char_size;
-                    out[idx].y = start_y + py * char_size;
-                    idx++;
-                }
+    int idx = 0;
+    for (int gy = 0; gy < outH && idx < count; gy++) {
+        for (int gx = 0; gx < outW && idx < count; gx++) {
+            COLORREF c = GetPixel(hDstDC, gx, gy);
+            if (GetRValue(c) > 80) {
+                out[idx].x = sx + gx * cell_sz + cell_sz / 2.0f;
+                out[idx].y = sy + gy * cell_sz + cell_sz / 2.0f;
+                idx++;
             }
         }
-
-        cur_x += (cw + 1) * char_size;  // +1 字符间距
     }
 
     // 清理
-    DeleteObject(hBmp);
+    DeleteObject(hSrcBmp); DeleteObject(hDstBmp);
     DeleteObject(hFont);
-    DeleteDC(hDC);
+    DeleteDC(hSrcDC); DeleteDC(hDstDC);
     ReleaseDC(NULL, hScrDC);
     free(wtext);
 
@@ -663,118 +664,76 @@ int gen_text(Point2f center, float char_size, const char* text,
  * 读取 24/32 位 BMP 文件，转灰度 → 自适应阈值二值化 → 降采样
  * 亮像素放置无人机。纯手工解析 BMP 文件头，不调任何图像库。
  */
+/*
+ * BMP 图片编队 —— 和 PCtoLCD2002 一样：先缩放到目标网格，再逐像素二值化
+ *
+ * 用 GDI LoadImage + StretchBlt 把任意尺寸 BMP 缩到输出网格大小，
+ * 然后逐像素读取，暗的放无人机。这和 PCtoLCD2002 先预览再取模的流程一致。
+ */
 int gen_image(Point2f center, float char_size, const char* filename,
               int count, Point2f out[])
 {
     if (filename == NULL || count <= 0 || out == NULL) return 0;
 
-    // 打开文件
-    FILE* fp = fopen(filename, "rb");
-    if (fp == NULL) return 0;
+    // 转宽字符路径
+    WCHAR wpath[256];
+    MultiByteToWideChar(CP_UTF8, 0, filename, -1, wpath, 256);
 
-    // 读取 BITMAPFILEHEADER（14 字节）
-    unsigned char bfType[2] = {0,0};
-    unsigned int  bfSize = 0, bfOffBits = 0;
-    if (fread(bfType, 2, 1, fp) != 1) { fclose(fp); return 0; }
-    if (bfType[0] != 'B' || bfType[1] != 'M') { fclose(fp); return 0; }
-    fread(&bfSize,    4, 1, fp);
-    fseek(fp, 4, SEEK_CUR);
-    fread(&bfOffBits, 4, 1, fp);
+    // 用 GDI 加载 BMP（自动处理所有位深和格式）
+    HBITMAP hSrc = (HBITMAP)LoadImageW(NULL, wpath, IMAGE_BITMAP,
+                                       0, 0, LR_LOADFROMFILE | LR_CREATEDIBSECTION);
+    if (hSrc == NULL) return 0;
 
-    // 读取 BITMAPINFOHEADER
-    unsigned int biWidth = 0, biHeight = 0;
-    unsigned short biBitCount = 0;
-    fseek(fp, 4, SEEK_CUR);
-    fread(&biWidth,  4, 1, fp);
-    fread(&biHeight, 4, 1, fp);
-    fseek(fp, 2, SEEK_CUR);
-    fread(&biBitCount, 2, 1, fp);
-    if (biBitCount != 24 && biBitCount != 32) { fclose(fp); return 0; }
+    // 获取原图尺寸
+    BITMAP bm;
+    GetObject(hSrc, sizeof(bm), &bm);
 
-    // 跳到像素数据
-    fseek(fp, bfOffBits, SEEK_SET);
-
-    int rowSize = ((biWidth * (biBitCount / 8) + 3) / 4) * 4;  // 对齐到4字节
-    int bpp     = biBitCount / 8;   // 每像素字节数
-
-    // 输出网格直接用舞台尺寸（40行 × 比例），保证填满表演区
-    float aspect = (float)biWidth / (float)biHeight;
-    int outH = STAGE_ROWS - 4;    // 36 行，充分利用舞台高度
-    int outW = (int)(outH * aspect);
+    // 输出网格：固定高度 36 行（接近 PCtoLCD2002 的取模尺寸）
+    int outH = STAGE_ROWS - 4;
+    int outW = (int)((float)outH * bm.bmWidth / bm.bmHeight);
     if (outW < 1) outW = 1;
-    if (outW > STAGE_COLS - 4) { outW = STAGE_COLS - 4; outH = (int)(outW / aspect); }
+    if (outW > STAGE_COLS - 4) { outW = STAGE_COLS - 4; outH = (int)((float)outW * bm.bmHeight / bm.bmWidth); }
 
-    float cellW = (float)biWidth  / outW;
-    float cellH = (float)biHeight / outH;
+    // 创建内存 DC + 目标位图
+    HDC hScrDC = GetDC(NULL);
+    HDC hSrcDC = CreateCompatibleDC(hScrDC);
+    HDC hDstDC = CreateCompatibleDC(hScrDC);
+    SelectObject(hSrcDC, hSrc);
 
-    // 读入像素数据并生成灰度阵列
-    int* cellCnt = (int*)calloc(outW * outH, sizeof(int));
-    unsigned char* rowBuf = (unsigned char*)malloc(rowSize);
-    if (cellCnt == NULL || rowBuf == NULL) {
-        free(cellCnt); free(rowBuf); fclose(fp); return 0;
-    }
+    HBITMAP hDst = CreateCompatibleBitmap(hScrDC, outW, outH);
+    SelectObject(hDstDC, hDst);
 
-    // 取每个格内的最小亮度（而非平均），和 PCtoLCD2002 逻辑一致
-    int* cellMin = (int*)malloc(outW * outH * sizeof(int));
-    for (int i = 0; i < outW * outH; i++) cellMin[i] = 255;
+    // StretchBlt：把原图缩到 outW×outH（PCtoLCD2002 的核心步骤）
+    SetStretchBltMode(hDstDC, COLORONCOLOR);
+    StretchBlt(hDstDC, 0, 0, outW, outH,
+               hSrcDC, 0, 0, bm.bmWidth, bm.bmHeight, SRCCOPY);
 
-    for (unsigned int y = 0; y < biHeight; y++) {
-        fread(rowBuf, rowSize, 1, fp);
-        int gy = (int)(y * cellH);
-        if (gy >= outH) gy = outH - 1;
-        for (unsigned int x = 0; x < biWidth; x++) {
-            int gx = (int)(x * cellW);
-            if (gx >= outW) gx = outW - 1;
-            unsigned char* p = &rowBuf[x * bpp];
-            int gray = (p[2] + p[1] + p[0]) / 3;
-            int ci = gy * outW + gx;
-            if (gray < cellMin[ci]) cellMin[ci] = gray;
-            cellCnt[ci]++;
-        }
-    }
-    free(rowBuf);
-    fclose(fp);
-
-    // 阈值 128：格内最小亮度 < 128 → 有暗色笔画 → 放无人机
-
-    // 生成无人机位置（填满舞台）
-    float cell_size = (float)(STAGE_COLS - 4) / outW;
-    float cell_h    = (float)(STAGE_ROWS - 4) / outH;
-    if (cell_h < cell_size) cell_size = cell_h;
-    if (cell_size < 1.0f) cell_size = 1.0f;
-
-    float total_w = outW * cell_size;
-    float total_h = outH * cell_size;
-    float start_x = center.x - total_w / 2.0f;
-    float start_y = center.y - total_h / 2.0f;
-
+    // 逐像素读取目标位图 → 暗像素放无人机
     int idx = 0;
     for (int gy = 0; gy < outH && idx < count; gy++) {
         for (int gx = 0; gx < outW && idx < count; gx++) {
-            int ci = gy * outW + gx;
-            // 格内最小亮度 < 128 → 有暗笔画 → 放无人机
-            if (cellCnt[ci] > 0 && cellMin[ci] < 128) {
-                out[idx].x = start_x + gx * cell_size + cell_size / 2.0f;
-                out[idx].y = start_y + gy * cell_size + cell_size / 2.0f;
+            COLORREF c = GetPixel(hDstDC, gx, gy);
+            int gray = (GetRValue(c) + GetGValue(c) + GetBValue(c)) / 3;
+            if (gray < 128) {
+                // 直接映射到舞台坐标
+                out[idx].x = (float)(STAGE_LEFT + 2)
+                           + (float)gx * (STAGE_COLS - 4) / outW;
+                out[idx].y = (float)(STAGE_TOP + 2)
+                           + (float)gy * (STAGE_ROWS - 4) / outH;
                 idx++;
             }
         }
     }
 
-    // 调试输出
-    {
-        FILE* dbg = fopen("bmp_debug.txt", "w");
-        if (dbg) {
-            fprintf(dbg, "文件: %s\n尺寸: %ux%u, %u位\n",
-                    filename, biWidth, biHeight, biBitCount);
-            fprintf(dbg, "输出网格: %dx%d, 最小值采样, 阈值<128, 生成%d架\n",
-                    outW, outH, idx);
-            fclose(dbg);
-        }
-    }
+    // 调试
+    { FILE* dbg = fopen("bmp_debug.txt", "w");
+      if (dbg) { fprintf(dbg, "%s: %ldx%ld -> %dx%d, %d drones\n",
+               filename, (long)bm.bmWidth, (long)bm.bmHeight,
+               outW, outH, idx); fclose(dbg); } }
 
-    free(cellMin);
-    free(cellCnt);
+    DeleteDC(hSrcDC); DeleteDC(hDstDC);
+    DeleteObject(hSrc); DeleteObject(hDst);
+    ReleaseDC(NULL, hScrDC);
     return idx;
 }
 
