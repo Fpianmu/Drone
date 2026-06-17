@@ -6,7 +6,7 @@
 flowchart TD
     A[程序启动] --> B[graphics_init 初始化控制台]
     B --> C[controller_create 创建控制器]
-    C --> D[初始化300架无人机]
+    C --> D[初始化500架无人机]
     D --> E[创建默认圆形编队]
     E --> F[graphics_show_welcome 显示欢迎界面]
     F --> G{主循环}
@@ -91,7 +91,8 @@ flowchart TD
     H -->|否| G
     G --> J[返回违规总数]
     J --> K[生成警告日志 warn_log]
-    K --> L[面板显示警告信息]
+    K --> L[碰撞类: 读取高度, 同高提示same alt, 不同高显示各自高度]
+    L --> M[面板+底栏显示警告]
 ```
 
 ## 5. 图案切换流程
@@ -109,9 +110,9 @@ flowchart TD
     I -->|圆形| J1[gen_circle]
     I -->|五角星| J2[gen_star]
     I -->|心形| J3[gen_heart]
-    I -->|...| J4[其他15种]
-    I -->|文字| J5[gen_text GDI渲染]
-    I -->|图片| J6[gen_image BMP加载]
+    I -->|...| J4[其他12种几何图案]
+    I -->|文字| J5[gen_text: GDI逐字渲染12x12→逐像素→无人机]
+    I -->|图片| J6[gen_image: LoadImage→StretchBlt→逐像素→无人机]
     J1 --> K[更新活跃无人机数量]
     J2 --> K
     J3 --> K
@@ -147,24 +148,15 @@ flowchart TD
 ```mermaid
 flowchart TD
     A[gen_text 文字编队] --> B[UTF-8 → 宽字符]
-    B --> C[创建12px黑体 GDI字体]
-    C --> D[逐字渲染到14×14位图]
-    D --> E[逐像素读取 GetPixel]
-    E --> F{像素亮度>80?}
-    F -->|是| G[放置无人机]
-    F -->|否| H[跳过]
-    G --> I[所有字处理完]
-    H --> I
-    I --> J[返回无人机坐标数组]
+    B --> C[创建12px SimHei GDI字体]
+    C --> D[逐字渲染到14×14位图: 中文12×12 英文6×12]
+    D --> E[逐像素 GetPixel 亮度>80→放无人机]
+    E --> F[所有字处理完, 返回坐标数组]
 
-    K[gen_image 图片编队] --> L[LoadImage 加载BMP]
-    L --> M[StretchBlt 缩放到目标网格]
-    M --> N[逐像素 GetPixel]
-    N --> O{亮度<128?}
-    O -->|是| P[放置无人机 暗像素=图案]
-    O -->|否| Q[跳过 亮像素=背景]
-    P --> R[返回无人机坐标数组]
-    Q --> R
+    G[gen_image 图片编队] --> H[LoadImage 加载BMP]
+    H --> I[StretchBlt 缩放到36行目标网格]
+    I --> J[逐像素 GetPixel, 亮度<128→放无人机]
+    J --> K[返回坐标数组]
 ```
 
 ## 8. 帧缓冲渲染原理
@@ -210,6 +202,7 @@ flowchart TD
     FORM --> TRAJ
     TRAJ --> DRONE
     SAFE --> GFX
+    SAFE --> DRONE
     LIGHT --> DRONE
     CTRL --> GFX
     CTRL --> FILE
