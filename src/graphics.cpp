@@ -778,15 +778,15 @@ void graphics_show_welcome(void)
     // Keys行1
     fb_put_wchar(1, cy, CON_CYAN, L'\x2551');
     fb_printf(5, cy, CON_WHITE,  "S / Enter   Start");
-    fb_printf(35, cy, CON_WHITE, "← →        切换图案");
-    fb_printf(65, cy, CON_WHITE, "C           切换颜色");
+    fb_printf(35, cy, CON_WHITE, "<- ->       Pattern");
+    fb_printf(65, cy, CON_WHITE, "C           Color");
     fb_put_wchar(CONSOLE_WIDTH - 2, cy, CON_CYAN, L'\x2551');
     cy++;
 
     // Keys行2
     fb_put_wchar(1, cy, CON_CYAN, L'\x2551');
     fb_printf(5, cy, CON_WHITE,  "P / Space   Pause");
-    fb_printf(35, cy, CON_WHITE, "T           文字编队");
+    fb_printf(35, cy, CON_WHITE, "T           Text");
     fb_printf(65, cy, CON_WHITE, "B           Blink");
     fb_put_wchar(CONSOLE_WIDTH - 2, cy, CON_CYAN, L'\x2551');
     cy++;
@@ -795,21 +795,21 @@ void graphics_show_welcome(void)
     fb_put_wchar(1, cy, CON_CYAN, L'\x2551');
     fb_printf(5, cy, CON_WHITE,  "Q           Stop");
     fb_printf(35, cy, CON_WHITE, "H           History");
-    fb_printf(65, cy, CON_WHITE, "            8种颜色");
+    fb_printf(65, cy, CON_WHITE, "            8 Colors");
     fb_put_wchar(CONSOLE_WIDTH - 2, cy, CON_CYAN, L'\x2551');
     cy++;
 
     // Keys行4
     fb_put_wchar(1, cy, CON_CYAN, L'\x2551');
     fb_printf(5, cy, CON_WHITE,  "↑ ↓        Speed");
-    fb_printf(35, cy, CON_WHITE, "            15种图案");
+    fb_printf(35, cy, CON_WHITE, "            15 Patterns");
     fb_printf(65, cy, CON_WHITE, "            Steady/Blink");
     fb_put_wchar(CONSOLE_WIDTH - 2, cy, CON_CYAN, L'\x2551');
     cy++;
 
     // Keys行5
     fb_put_wchar(1, cy, CON_CYAN, L'\x2551');
-    fb_printf(5, cy, CON_WHITE,  "ESC         退出程序");
+    fb_printf(5, cy, CON_WHITE,  "ESC         Quit");
     fb_printf(35, cy, CON_GRAY,  "Pat: Circle/Square/Tri/");
     fb_printf(65, cy, CON_GRAY,  "Colors: R/G/B/W/");
     fb_put_wchar(CONSOLE_WIDTH - 2, cy, CON_CYAN, L'\x2551');
