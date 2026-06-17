@@ -821,9 +821,9 @@ void pattern_recommend(PatternType type, int text_len,
     case PAT_TEXT:
         // GDI 渲染：char_size=输出像素间距（1~2格较合适）
         if (text_len <= 0) text_len = 3;
-        *out_count = text_len * 50;   // 每字约50架（12×12=144像素，约1/3亮）
-        if (*out_count > 200) *out_count = 200;
-        if (*out_count < 30)  *out_count = 30;
+        *out_count = text_len * 80;   // 每字约80架（12×12=144像素，约1/2亮）
+        if (*out_count > 450) *out_count = 450;
+        if (*out_count < 50)  *out_count = 50;
         *out_scale = 3.0f;   // char_size=1，每个像素1格，12×1=12格高，紧凑
         break;
     case PAT_IMAGE:

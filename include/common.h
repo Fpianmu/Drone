@@ -38,7 +38,7 @@
 #define PANEL_WIDTH         (CONSOLE_WIDTH - PANEL_LEFT - 2)
 
 // 资源上限
-#define MAX_DRONE_COUNT     300   // 最多支持的无人机总数
+#define MAX_DRONE_COUNT     500   // 最多支持的无人机总数
 #define MAX_WAYPOINTS       200   // 单次轨迹最多航点数
 #define MAX_FORMATIONS       50   // 最多编队数
 #define MAX_FILENAME_LEN    128   // 文件名最大长度

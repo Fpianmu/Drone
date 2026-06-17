@@ -14,7 +14,7 @@
 /* ==================== 常量 ==================== */
 
 #define DEFAULT_SPEED       10.0f
-#define DEFAULT_DRONE_COUNT 300
+#define DEFAULT_DRONE_COUNT 500
 #define MIN_SPEED            2.0f
 #define MAX_SPEED            40.0f
 
