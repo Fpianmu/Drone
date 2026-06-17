@@ -803,21 +803,21 @@ void pattern_recommend(PatternType type, int text_len,
                        int* out_count, float* out_scale)
 {
     switch (type) {
-    case PAT_CIRCLE:    *out_count = 30;  *out_scale = 18.0f; break;
-    case PAT_SQUARE:    *out_count = 28;  *out_scale = 22.0f; break;
-    case PAT_TRIANGLE:  *out_count = 27;  *out_scale = 22.0f; break;
-    case PAT_DIAMOND:   *out_count = 24;  *out_scale = 20.0f; break;
-    case PAT_STAR:      *out_count = 40;  *out_scale = 18.0f; break;
-    case PAT_PENTAGON:  *out_count = 25;  *out_scale = 18.0f; break;
-    case PAT_HEXAGON:   *out_count = 30;  *out_scale = 18.0f; break;
-    case PAT_HEART:     *out_count = 35;  *out_scale = 18.0f; break;
-    case PAT_SPIRAL:    *out_count = 40;  *out_scale = 16.0f; break;
-    case PAT_LINE:      *out_count = 20;  *out_scale = 35.0f; break;
-    case PAT_ARROW:     *out_count = 25;  *out_scale = 22.0f; break;
-    case PAT_CROSS:     *out_count = 20;  *out_scale = 22.0f; break;
-    case PAT_ARC:       *out_count = 25;  *out_scale = 18.0f; break;
-    case PAT_GRID:      *out_count = 25;  *out_scale = 22.0f; break;
-    case PAT_RANDOM:    *out_count = 30;  *out_scale = 25.0f; break;
+    case PAT_CIRCLE:    *out_count = 30;  *out_scale = 15.0f; break;
+    case PAT_SQUARE:    *out_count = 28;  *out_scale = 16.0f; break;
+    case PAT_TRIANGLE:  *out_count = 27;  *out_scale = 16.0f; break;
+    case PAT_DIAMOND:   *out_count = 24;  *out_scale = 14.0f; break;
+    case PAT_STAR:      *out_count = 40;  *out_scale = 15.0f; break;
+    case PAT_PENTAGON:  *out_count = 25;  *out_scale = 15.0f; break;
+    case PAT_HEXAGON:   *out_count = 30;  *out_scale = 15.0f; break;
+    case PAT_HEART:     *out_count = 35;  *out_scale = 15.0f; break;
+    case PAT_SPIRAL:    *out_count = 40;  *out_scale = 14.0f; break;
+    case PAT_LINE:      *out_count = 20;  *out_scale = 34.0f; break;
+    case PAT_ARROW:     *out_count = 25;  *out_scale = 16.0f; break;
+    case PAT_CROSS:     *out_count = 20;  *out_scale = 16.0f; break;
+    case PAT_ARC:       *out_count = 25;  *out_scale = 15.0f; break;
+    case PAT_GRID:      *out_count = 25;  *out_scale = 16.0f; break;
+    case PAT_RANDOM:    *out_count = 30;  *out_scale = 20.0f; break;
     case PAT_TEXT:
         // GDI 渲染：char_size=输出像素间距（1~2格较合适）
         if (text_len <= 0) text_len = 3;
