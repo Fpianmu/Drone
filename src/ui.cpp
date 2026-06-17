@@ -22,18 +22,18 @@ static UICmd poll_mouse(void)
     HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE);
     DWORD events;
     INPUT_RECORD rec;
-    if (PeekConsoleInputW(hIn, &rec, 1, &events) && events > 0) {
-        if (rec.EventType == MOUSE_EVENT) {
-            ReadConsoleInputW(hIn, &rec, 1, &events);
-            MOUSE_EVENT_RECORD* me = &rec.Event.MouseEvent;
-            if (me->dwEventFlags == 0) {  // 点击（非移动）
-                g_mouse_click.col   = me->dwMousePosition.X;
-                g_mouse_click.row   = me->dwMousePosition.Y;
-                g_mouse_click.button = (me->dwButtonState & FROM_LEFT_1ST_BUTTON_PRESSED) ? 1
-                                    : (me->dwButtonState & RIGHTMOST_BUTTON_PRESSED) ? 2 : 0;
-                if (g_mouse_click.button > 0)
-                    return UI_CMD_MOUSE_CLICK;
-            }
+    // 只看队列第一个事件，仅当是鼠标事件时才读取，键盘事件留给 _kbhit
+    if (PeekConsoleInputW(hIn, &rec, 1, &events) && events > 0
+        && rec.EventType == MOUSE_EVENT) {
+        ReadConsoleInputW(hIn, &rec, 1, &events);
+        MOUSE_EVENT_RECORD* me = &rec.Event.MouseEvent;
+        if (me->dwEventFlags == 0) {
+            g_mouse_click.col   = me->dwMousePosition.X;
+            g_mouse_click.row   = me->dwMousePosition.Y;
+            g_mouse_click.button = (me->dwButtonState & FROM_LEFT_1ST_BUTTON_PRESSED) ? 1
+                                : (me->dwButtonState & RIGHTMOST_BUTTON_PRESSED) ? 2 : 0;
+            if (g_mouse_click.button > 0)
+                return UI_CMD_MOUSE_CLICK;
         }
     }
     return UI_CMD_NONE;
