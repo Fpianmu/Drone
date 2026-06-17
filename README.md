@@ -47,7 +47,7 @@ g++ -std=c++11 -Wall -o drone_show.exe \
     -I include -lm -lgdi32
 ```
 
-**环境：** GCC / MinGW-w64，仅用 Windows Console API，无需任何第三方图形库。
+**环境：** GCC / MinGW-w64  Windows Console API
 
 ## 项目结构
 
