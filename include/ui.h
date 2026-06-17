@@ -29,16 +29,11 @@ typedef enum {
     UI_CMD_HISTORY,      // 切换历史编队
     UI_CMD_IMAGE,        // 加载 BMP 图片编队
     UI_CMD_FX_NEXT,      // 切换灯光特效
-    UI_CMD_MOUSE_CLICK,  // 鼠标点击（位置从附加字段获取）
     UI_CMD_EXIT,         // 退出
 } UICmd;
 
 // 检查有没有按键（非阻塞），有就返回对应命令，没有返回 UI_CMD_NONE
 UICmd ui_poll_input(void);
-
-// 鼠标点击信息
-typedef struct { int col, row, button; } MouseClick;
-extern MouseClick g_mouse_click;  // 最近一次鼠标点击的位置和按键(1=左,2=右)
 
 // 阻塞等待用户输入一个整数（在 [min_val, max_val] 范围内）
 int ui_input_int(const char* prompt, int min_val, int max_val);
