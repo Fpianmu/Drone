@@ -191,15 +191,24 @@ void controller_run(Controller* ctrl)
              && ctrl->warn_log_count < WARN_LOG_SIZE; i++) {
             int id = ctrl->safety_result.boundary_ids[i];
             snprintf(ctrl->warn_log[ctrl->warn_log_count], MAX_WARNING_LEN,
-                     "Boundary: D#%d", id);
+                     "Boundary: D#%d out of stage", id);
             ctrl->warn_log_count++;
         }
         for (int i = 0; i < ctrl->safety_result.distance_violations
              && ctrl->warn_log_count < WARN_LOG_SIZE; i++) {
             int a = ctrl->safety_result.pair_a[i];
             int b = ctrl->safety_result.pair_b[i];
-            snprintf(ctrl->warn_log[ctrl->warn_log_count], MAX_WARNING_LEN,
-                     "Collision: D#%d-D#%d", a, b);
+            float ha = 0, hb = 0;
+            for (int j = 0; j < ctrl->drone_count; j++) {
+                if (ctrl->fleet[j] && ctrl->fleet[j]->id == a) ha = ctrl->fleet[j]->height;
+                if (ctrl->fleet[j] && ctrl->fleet[j]->id == b) hb = ctrl->fleet[j]->height;
+            }
+            if (ha == hb)
+                snprintf(ctrl->warn_log[ctrl->warn_log_count], MAX_WARNING_LEN,
+                         "Collision: D#%d-D#%d same alt %.0fm", a, b, ha);
+            else
+                snprintf(ctrl->warn_log[ctrl->warn_log_count], MAX_WARNING_LEN,
+                         "Collision: D#%d(%.0fm)-D#%d(%.0fm)", a, ha, b, hb);
             ctrl->warn_log_count++;
         }
 
