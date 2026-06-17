@@ -284,17 +284,6 @@ void graphics_draw_stage(const SafetyZone* zone)
         }
     }
 
-    // 中心十字参考线（淡色）
-    int cx = x0 + STAGE_COLS / 2;
-    int cy = y0 + STAGE_ROWS / 2;
-    for (int x = x0 + 1; x < x1; x++) {
-        if (x % 10 == 0) continue; // 不覆盖网格点
-        fb_put_wchar(x, cy, CON_GRAY, L'\x2504');  // ┄ 细横线
-    }
-    for (int y = y0 + 1; y < y1; y++) {
-        if (y % 10 == 0) continue;
-        fb_put_wchar(cx, y, CON_GRAY, L'\x2506');  // ┆ 细竖线
-    }
 }
 
 void graphics_draw_drone(const Drone* drone, ConsoleColor color)
