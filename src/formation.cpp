@@ -729,12 +729,6 @@ int gen_image(Point2f center, float char_size, const char* filename,
         }
     }
 
-    // 调试
-    { FILE* dbg = fopen("bmp_debug.txt", "w");
-      if (dbg) { fprintf(dbg, "%s: %ldx%ld -> %dx%d, %d drones\n",
-               filename, (long)bm.bmWidth, (long)bm.bmHeight,
-               outW, outH, idx); fclose(dbg); } }
-
     DeleteDC(hSrcDC); DeleteDC(hDstDC);
     DeleteObject(hSrc); DeleteObject(hDst);
     ReleaseDC(NULL, hScrDC);
