@@ -179,6 +179,12 @@ int traj_from_formation(Drone* fleet[], int count, const Formation* formation,
     for (int i = 0; i < count; i++) {
         if (fleet[i] == NULL) continue;
 
+        // 释放旧轨迹，防止内存泄漏
+        if (trajectories[i] != NULL) {
+            traj_destroy(trajectories[i]);
+            trajectories[i] = NULL;
+        }
+
         // 为每架无人机创建独立轨迹
         trajectories[i] = traj_create();
         if (trajectories[i] == NULL) {
@@ -210,6 +216,7 @@ int traj_update_fleet(Drone* fleet[], Trajectory* trajectories[],
 
     for (int i = 0; i < count; i++) {
         if (fleet[i] == NULL || trajectories[i] == NULL) continue;
+        if (!fleet[i]->is_active) continue;
 
         // 逐帧更新每架无人机的轨迹
         int moving = traj_update(trajectories[i], fleet[i], speed, delta_ms);

@@ -507,14 +507,14 @@ void ctrl_update_frame(Controller* ctrl, int delta_ms)
     if (ctrl == NULL) return;
 
     int effective_delta = (int)(delta_ms * ctrl->sim_speed);
-
-    // 1) 轨迹更新
-    traj_update_fleet(ctrl->fleet, ctrl->trajectories,
-                      ctrl->drone_count, DEFAULT_SPEED, effective_delta);
-
-    // 2) 灯光特效
     int use_count = (ctrl->current_formation != NULL)
         ? ctrl->current_formation->drone_count : 0;
+
+    // 1) 轨迹更新（仅更新活跃无人机）
+    traj_update_fleet(ctrl->fleet, ctrl->trajectories,
+                      use_count, DEFAULT_SPEED, effective_delta);
+
+    // 2) 灯光特效
     if (use_count > 0) {
         switch (ctrl->light_fx) {
         case FX_WAVE:
