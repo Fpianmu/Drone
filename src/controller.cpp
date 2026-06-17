@@ -51,6 +51,7 @@ Controller* controller_create(void)
     ctrl->selected_pattern  = PAT_CIRCLE;
     ctrl->selected_color    = COLOR_WHITE;
     ctrl->selected_light_mode = LIGHT_STEADY;
+    ctrl->light_fx          = FX_NONE;  // 默认无特效
 
     ctrl->current_formation = NULL;
 
@@ -190,7 +191,7 @@ void controller_run(Controller* ctrl)
              && ctrl->warn_log_count < WARN_LOG_SIZE; i++) {
             int id = ctrl->safety_result.boundary_ids[i];
             snprintf(ctrl->warn_log[ctrl->warn_log_count], MAX_WARNING_LEN,
-                     "越界: D#%d 超出表演区", id);
+                     "Boundary: D#%d", id);
             ctrl->warn_log_count++;
         }
         for (int i = 0; i < ctrl->safety_result.distance_violations
@@ -198,7 +199,7 @@ void controller_run(Controller* ctrl)
             int a = ctrl->safety_result.pair_a[i];
             int b = ctrl->safety_result.pair_b[i];
             snprintf(ctrl->warn_log[ctrl->warn_log_count], MAX_WARNING_LEN,
-                     "碰撞: D#%d-D#%d 间距过近", a, b);
+                     "Collision: D#%d-D#%d", a, b);
             ctrl->warn_log_count++;
         }
 
@@ -278,6 +279,7 @@ void ctrl_handle_command(Controller* ctrl, UICmd cmd)
 
     case UI_CMD_TOGGLE_BLINK:
         // 切换闪烁模式
+        ctrl->light_fx = FX_NONE;  // B键优先回到基础模式
         if (ctrl->selected_light_mode == LIGHT_STEADY) {
             ctrl->selected_light_mode = LIGHT_BLINK;
             light_fleet_set_mode(ctrl->fleet, ctrl->drone_count, LIGHT_BLINK);
@@ -286,6 +288,16 @@ void ctrl_handle_command(Controller* ctrl, UICmd cmd)
             ctrl->selected_light_mode = LIGHT_STEADY;
             light_fleet_set_mode(ctrl->fleet, ctrl->drone_count, LIGHT_STEADY);
         }
+        break;
+
+    case UI_CMD_FX_NEXT:
+        // 循环切换灯光特效
+        ctrl->light_fx = (LightFX)((int)ctrl->light_fx + 1);
+        if (ctrl->light_fx >= FX_COUNT) ctrl->light_fx = FX_NONE;
+        // 重置特效计时器
+        ctrl->wave_elapsed_ms = 0;
+        ctrl->flow_offset = 0;  ctrl->flow_timer_ms = 0;
+        ctrl->alt_phase = 0;    ctrl->alt_timer_ms = 0;
         break;
 
     case UI_CMD_SAVE:
@@ -306,7 +318,7 @@ void ctrl_handle_command(Controller* ctrl, UICmd cmd)
         {
             // 读取用户输入的文字（≤5字）
             char text[32];
-            printf("\n请输入文字(≤5字): ");
+            printf("\nEnter text (<=5 chars): ");
             fflush(stdout);
             fgets(text, sizeof(text), stdin);
             text[strcspn(text, "\r\n")] = '\0';
@@ -447,7 +459,7 @@ void ctrl_handle_command(Controller* ctrl, UICmd cmd)
 
             Point2f center = { STAGE_COLS / 2.0f, STAGE_ROWS / 2.0f };
             ctrl->current_formation = formation_create(
-                "历史编队", h->pattern, center, opt_scale, 0.0f,
+                "History", h->pattern, center, opt_scale, 0.0f,
                 opt_count, h->text
             );
             if (ctrl->current_formation == NULL) break;
@@ -485,14 +497,49 @@ void ctrl_update_frame(Controller* ctrl, int delta_ms)
 {
     if (ctrl == NULL) return;
 
-    // 根据速度倍率调整实际时间增量
     int effective_delta = (int)(delta_ms * ctrl->sim_speed);
 
-    // 1) 轨迹更新：所有无人机沿轨迹移动一步
+    // 1) 轨迹更新
     traj_update_fleet(ctrl->fleet, ctrl->trajectories,
                       ctrl->drone_count, DEFAULT_SPEED, effective_delta);
 
-    // 2) 不主动推开——由安全检测+面板日志负责告警
+    // 2) 灯光特效
+    int use_count = (ctrl->current_formation != NULL)
+        ? ctrl->current_formation->drone_count : 0;
+    if (use_count > 0) {
+        switch (ctrl->light_fx) {
+        case FX_WAVE:
+            ctrl->wave_elapsed_ms += effective_delta;
+            light_wave_effect(ctrl->fleet, use_count, ctrl->selected_color,
+                              200, &ctrl->wave_elapsed_ms, 0);
+            break;
+        case FX_FLOW:
+            light_flow(ctrl->fleet, use_count, ctrl->selected_color,
+                       5, &ctrl->flow_offset, 300, &ctrl->flow_timer_ms);
+            break;
+        case FX_ALTERNATE:
+            light_alternate(ctrl->fleet, use_count,
+                            ctrl->selected_color, COLOR_WHITE,
+                            &ctrl->alt_phase, 500, &ctrl->alt_timer_ms);
+            break;
+        case FX_COLOR_FLOW: {
+            // 颜色渐变+流水灯：每1.5秒自动切换颜色
+            LightColor cyl_colors[] = {
+                COLOR_RED, COLOR_YELLOW, COLOR_GREEN,
+                COLOR_CYAN, COLOR_BLUE, COLOR_PURPLE, COLOR_ORANGE, COLOR_WHITE};
+            ctrl->color_cycle_timer += effective_delta;
+            if (ctrl->color_cycle_timer > 1500) {
+                ctrl->color_cycle_timer = 0;
+                ctrl->color_cycle_idx = (ctrl->color_cycle_idx + 1) % 8;
+            }
+            light_flow(ctrl->fleet, use_count, cyl_colors[ctrl->color_cycle_idx],
+                       5, &ctrl->flow_offset, 200, &ctrl->flow_timer_ms);
+            break;
+        }
+        default:
+            break;  // FX_NONE: 不干预，保持常亮/闪烁
+        }
+    }
 }
 
 /* ==================== 帧渲染 ==================== */
@@ -530,14 +577,15 @@ void ctrl_render_frame(Controller* ctrl, int delta_ms)
                         ctrl->sim_speed,
                         ctrl->selected_color,
                         ctrl->selected_light_mode,
-                        has_warning);
+                        has_warning,
+                        ctrl->light_fx);
 
     // 面板警告日志（右侧面板下方6行滚动）
     graphics_draw_warn_panel(ctrl->warn_log, ctrl->warn_log_count);
 
     // 底部状态栏
     graphics_draw_bottom_bar(ctrl->drone_count, active_count,
-                             "按 H 查看历史 | 按 T 输入文字");
+                             "S:Run P:Pause Q:Stop E:FX C:Color B:Blink T:Text I:Img H:Hist");
 
     // 刷新到屏幕
     graphics_flush();
@@ -601,7 +649,7 @@ void ctrl_switch_pattern(Controller* ctrl, int direction)
 
     Point2f center = { STAGE_COLS / 2.0f, STAGE_ROWS / 2.0f };
     ctrl->current_formation = formation_create(
-        "当前编队", ctrl->selected_pattern, center, opt_scale, 0.0f,
+        "Formation", ctrl->selected_pattern, center, opt_scale, 0.0f,
         opt_count, txt_param
     );
 
@@ -631,7 +679,7 @@ void ctrl_init_default_formation(Controller* ctrl)
 
     Point2f center = { STAGE_COLS / 2.0f, STAGE_ROWS / 2.0f };
     ctrl->current_formation = formation_create(
-        "圆形编队", PAT_CIRCLE, center, opt_scale, 0.0f,
+        "Circle", PAT_CIRCLE, center, opt_scale, 0.0f,
         opt_count, NULL
     );
     ctrl->selected_pattern = PAT_CIRCLE;

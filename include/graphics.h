@@ -44,7 +44,8 @@ void graphics_draw_warnings(const SafetyResult* result);   // 安全告警（红
 void graphics_draw_panel(Drone* fleet[], int count, SimState state,
                          const Formation* formation, int elapsed_ms,
                          float sim_speed, LightColor light_color,
-                         LightMode light_mode, int has_warning);
+                         LightMode light_mode, int has_warning,
+                         LightFX light_fx);
 
 /* ---- 特殊界面 ---- */
 

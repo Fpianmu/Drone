@@ -28,6 +28,7 @@ typedef enum {
     UI_CMD_TEXT_INPUT,   // 输入文字编队
     UI_CMD_HISTORY,      // 切换历史编队
     UI_CMD_IMAGE,        // 加载 BMP 图片编队
+    UI_CMD_FX_NEXT,      // 切换灯光特效
     UI_CMD_EXIT,         // 退出
 } UICmd;
 

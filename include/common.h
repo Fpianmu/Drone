@@ -25,13 +25,13 @@
 
 // 控制台总尺寸（字符格为单位）
 #define CONSOLE_WIDTH      120    // 总列数
-#define CONSOLE_HEIGHT      45    // 总行数
+#define CONSOLE_HEIGHT      40    // 总行数（缩小以保证窗口可见全部）
 
 // 表演区在控制台中的位置和大小
 #define STAGE_LEFT           2    // 表演区左上角列号
-#define STAGE_TOP            2    // 表演区左上角行号
+#define STAGE_TOP            1    // 表演区左上角行号（紧贴标题栏下方）
 #define STAGE_COLS          80    // 表演区宽（列）
-#define STAGE_ROWS          40    // 表演区高（行）
+#define STAGE_ROWS          36    // 表演区高（行）
 
 // 右侧信息面板
 #define PANEL_LEFT          (STAGE_LEFT + STAGE_COLS + 2)  // 面板起始列
@@ -105,6 +105,16 @@ typedef enum {
     LIGHT_BLINK,       // 闪烁：按设定间隔一亮一灭
     LIGHT_OFF          // 关闭：完全熄灭
 } LightMode;
+
+// 灯光特效模式 —— 按 E 键循环切换
+typedef enum {
+    FX_NONE = 0,       // 无特效（基础常亮/闪烁）
+    FX_WAVE,           // 波浪点亮：依次亮起
+    FX_FLOW,           // 流水灯：亮灯窗口滑动
+    FX_ALTERNATE,      // 交替闪烁：奇偶交替
+    FX_COLOR_FLOW,     // 颜色渐变流水灯
+    FX_COUNT           // 特效总数
+} LightFX;
 
 // 图案类型 —— 所有支持的编队图案
 typedef enum {
@@ -215,6 +225,7 @@ typedef struct {
     int         waypoint_count;             // 总航点数
     int         current_index;              // 当前要去第几个
     float       total_progress;             // 整体进度 0.0 ~ 1.0
+    int         departure_delay;            // 随机出发延迟（毫秒），0=立即出发
 } Trajectory;
 
 // 表演区域的安全配置

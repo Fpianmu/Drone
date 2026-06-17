@@ -14,9 +14,10 @@ Trajectory* traj_create(void)
     Trajectory* traj = (Trajectory*)malloc(sizeof(Trajectory));
     if (traj == NULL) return NULL;
 
-    traj->waypoint_count = 0;
-    traj->current_index  = 0;
-    traj->total_progress = 0.0f;
+    traj->waypoint_count   = 0;
+    traj->current_index    = 0;
+    traj->total_progress   = 0.0f;
+    traj->departure_delay  = 0;
 
     return traj;
 }
@@ -70,6 +71,12 @@ int traj_update(Trajectory* traj, Drone* drone, float speed, int delta_ms)
     if (traj == NULL || drone == NULL) return 0;
 
     // 如果轨迹已走完
+    // 出发延迟：先等 delay 结束再移动
+    if (traj->departure_delay > 0) {
+        traj->departure_delay -= delta_ms;
+        if (traj->departure_delay < 0) traj->departure_delay = 0;
+        return 1;
+    }
     if (traj->current_index >= traj->waypoint_count) {
         return 0;
     }
@@ -188,6 +195,7 @@ int traj_from_formation(Drone* fleet[], int count, const Formation* formation,
         if (formation_get_target(formation, i, &target.x, &target.y)) {
             traj_add_waypoint(trajectories[i], target, color, mode, 0);
         }
+            trajectories[i]->departure_delay = rand() % 500;
     }
 
     return 1;

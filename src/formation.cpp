@@ -581,81 +581,84 @@ int gen_text(Point2f center, float char_size, const char* text,
     MultiByteToWideChar(CP_UTF8, 0, text, -1, wtext, wlen);
     int wchars = wlen - 1;
 
-    // 创建 GDI 环境
+    // GDI 环境
     HDC hScrDC = GetDC(NULL);
-    HDC hSrcDC = CreateCompatibleDC(hScrDC);
-    HDC hDstDC = CreateCompatibleDC(hScrDC);
+    HDC hDC    = CreateCompatibleDC(hScrDC);
 
-    // 大字号渲染到源位图（64px，保证笔画清晰）
-    int fontH = 64;
-    HFONT hFont = CreateFontW(fontH, 0, 0, 0, FW_BOLD,
+    // 每个字符的像素格：中文 12×12，英文 6×12（适配舞台80×40）
+    int gridH   = 12;     // 统一 12 像素高
+    int wideW   = 12;     // 中文 12 像素宽
+    int narrowW = 6;      // 英文 6 像素宽
+
+    // 创建 12px 高的字体，刚好填满 12px 格子
+    HFONT hFont = CreateFontW(gridH, 0, 0, 0, FW_NORMAL,
         FALSE, FALSE, FALSE, DEFAULT_CHARSET,
         OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY,
+        NONANTIALIASED_QUALITY,        // 无抗锯齿
         DEFAULT_PITCH | FF_DONTCARE, L"SimHei");
     if (hFont == NULL)
-        hFont = CreateFontW(fontH, 0, 0, 0, FW_BOLD,
+        hFont = CreateFontW(gridH, 0, 0, 0, FW_NORMAL,
             FALSE, FALSE, FALSE, DEFAULT_CHARSET,
             OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
-            CLEARTYPE_QUALITY,
-            DEFAULT_PITCH | FF_DONTCARE, L"Arial");
-    SelectObject(hSrcDC, hFont);
-    SetBkColor(hSrcDC, RGB(0,0,0));
-    SetTextColor(hSrcDC, RGB(255,255,255));
-    SetBkMode(hSrcDC, OPAQUE);
+            NONANTIALIASED_QUALITY,
+            DEFAULT_PITCH | FF_DONTCARE, L"Consolas");
+    SelectObject(hDC, hFont);
+    SetBkColor(hDC, RGB(0,0,0));
+    SetTextColor(hDC, RGB(255,255,255));
+    SetBkMode(hDC, OPAQUE);
 
-    // 测量文字
-    SIZE ts;
-    GetTextExtentPoint32W(hSrcDC, wtext, wchars, &ts);
+    // 小位图：刚好装下一个字
+    HBITMAP hBmp = CreateCompatibleBitmap(hScrDC, 14, 14);
+    SelectObject(hDC, hBmp);
 
-    // 源位图：用字体高度确保文字完整不裁切
-    int srcW = ts.cx + 4, srcH = fontH + 4;
-    HBITMAP hSrcBmp = CreateCompatibleBitmap(hScrDC, srcW, srcH);
-    SelectObject(hSrcDC, hSrcBmp);
-    RECT rc = {0, 0, srcW, srcH};
-    FillRect(hSrcDC, &rc, (HBRUSH)GetStockObject(BLACK_BRUSH));
-    TextOutW(hSrcDC, 2, 2, wtext, wchars);  // 从(2,2)开始，留白边
+    // 计算总宽度，若超出舞台则自动缩小 cell_sz
+    int total_cols = 0;
+    for (int i = 0; i < wchars; i++)
+        total_cols += (wtext[i] < 0x80) ? narrowW + 1 : wideW + 1;
 
-    // 目标网格：固定高度 30 行，宽度按文字比例
-    int outH = 30;
-    int outW = (int)((float)outH * ts.cx / fontH);
-    if (outW < 2) outW = 2;
-    if (outW > STAGE_COLS - 6) { outW = STAGE_COLS - 6; outH = (int)((float)outW * fontH / ts.cx); }
-
-    // StretchBlt：用字体实际高度做源范围
-    HBITMAP hDstBmp = CreateCompatibleBitmap(hScrDC, outW, outH);
-    SelectObject(hDstDC, hDstBmp);
-    SetStretchBltMode(hDstDC, COLORONCOLOR);
-    StretchBlt(hDstDC, 0, 0, outW, outH,
-               hSrcDC, 0, 0, srcW, srcH, SRCCOPY);
-
-    // 逐像素采样 → 白像素放无人机
-    float cell_sz = (float)(STAGE_COLS - 6) / outW;
-    float cell_h  = (float)(STAGE_ROWS - 6) / outH;
-    if (cell_h < cell_sz) cell_sz = cell_h;
+    float cell_sz = char_size;
     if (cell_sz < 1.0f) cell_sz = 1.0f;
-    float tw = outW * cell_sz, th = outH * cell_sz;
-    float sx = center.x - tw / 2.0f, sy = center.y - th / 2.0f;
+    float total_w = (total_cols - 1) * cell_sz;
+    // 超出舞台宽度时自动缩小
+    if (total_w > STAGE_COLS - 4) {
+        cell_sz = (float)(STAGE_COLS - 4) / (total_cols - 1);
+        if (cell_sz < 1.0f) cell_sz = 1.0f;
+        total_w = (total_cols - 1) * cell_sz;
+    }
+    float sx = center.x - total_w / 2.0f;
+    float sy = center.y - (gridH - 1) * cell_sz / 2.0f;
 
-    int idx = 0;
-    for (int gy = 0; gy < outH && idx < count; gy++) {
-        for (int gx = 0; gx < outW && idx < count; gx++) {
-            COLORREF c = GetPixel(hDstDC, gx, gy);
-            if (GetRValue(c) > 80) {
-                out[idx].x = sx + gx * cell_sz + cell_sz / 2.0f;
-                out[idx].y = sy + gy * cell_sz + cell_sz / 2.0f;
-                idx++;
+    int   idx   = 0;
+    float cur_x = sx;
+
+    // 逐字渲染 → 逐像素 → 放无人机
+    for (int ci = 0; ci < wchars && idx < count; ci++) {
+        int cw = (wtext[ci] < 0x80) ? narrowW : wideW;
+
+        // 清空位图并画一个字
+        RECT rc = {0, 0, 18, 18};
+        FillRect(hDC, &rc, (HBRUSH)GetStockObject(BLACK_BRUSH));
+        TextOutW(hDC, 0, 0, &wtext[ci], 1);
+
+        // 逐像素读取 → 白像素=无人机
+        for (int py = 0; py < gridH && idx < count; py++) {
+            for (int px = 0; px < cw && idx < count; px++) {
+                COLORREF c = GetPixel(hDC, px, py);
+                if (GetRValue(c) > 80) {
+                    out[idx].x = cur_x + px * cell_sz;
+                    out[idx].y = sy   + py * cell_sz;
+                    idx++;
+                }
             }
         }
+        cur_x += (cw + 1) * cell_sz;  // +1 字符间距
     }
 
-    // 清理
-    DeleteObject(hSrcBmp); DeleteObject(hDstBmp);
+    DeleteObject(hBmp);
     DeleteObject(hFont);
-    DeleteDC(hSrcDC); DeleteDC(hDstDC);
+    DeleteDC(hDC);
     ReleaseDC(NULL, hScrDC);
     free(wtext);
-
     return idx;
 }
 
@@ -690,7 +693,7 @@ int gen_image(Point2f center, float char_size, const char* filename,
     GetObject(hSrc, sizeof(bm), &bm);
 
     // 输出网格：固定高度 36 行（接近 PCtoLCD2002 的取模尺寸）
-    int outH = STAGE_ROWS - 4;
+    int outH = STAGE_ROWS - 2;  // 适配缩小后的舞台
     int outW = (int)((float)outH * bm.bmWidth / bm.bmHeight);
     if (outW < 1) outW = 1;
     if (outW > STAGE_COLS - 4) { outW = STAGE_COLS - 4; outH = (int)((float)outW * bm.bmHeight / bm.bmWidth); }
@@ -720,7 +723,7 @@ int gen_image(Point2f center, float char_size, const char* filename,
                 out[idx].x = (float)(STAGE_LEFT + 2)
                            + (float)gx * (STAGE_COLS - 4) / outW;
                 out[idx].y = (float)(STAGE_TOP + 2)
-                           + (float)gy * (STAGE_ROWS - 4) / outH;
+                           + (float)gy * (STAGE_ROWS - 2) / outH;
                 idx++;
             }
         }
@@ -824,10 +827,10 @@ void pattern_recommend(PatternType type, int text_len,
     case PAT_TEXT:
         // GDI 渲染：char_size=输出像素间距（1~2格较合适）
         if (text_len <= 0) text_len = 3;
-        *out_count = text_len * 120;   // 每字约120架（大字体+密集采样）
-        if (*out_count > 280) *out_count = 280;
-        if (*out_count < 80)  *out_count = 80;
-        *out_scale = 3.0f;   // 仅作后备，实际格子数由 count 决定
+        *out_count = text_len * 50;   // 每字约50架（12×12=144像素，约1/3亮）
+        if (*out_count > 200) *out_count = 200;
+        if (*out_count < 30)  *out_count = 30;
+        *out_scale = 3.0f;   // char_size=1，每个像素1格，12×1=12格高，紧凑
         break;
     case PAT_IMAGE:
         *out_count = 200;  *out_scale = 3.0f;  break;

@@ -62,6 +62,8 @@ typedef struct {
     int         wave_elapsed_ms;
     int         alt_phase, alt_timer_ms;
     int         flow_offset, flow_timer_ms;
+    int         color_cycle_timer;  // FX_COLOR_FLOW 颜色切换计时器
+    int         color_cycle_idx;    // 当前颜色索引
 
     // 模拟状态
     SimState    sim_state;
@@ -73,6 +75,7 @@ typedef struct {
     PatternType selected_pattern;
     LightColor  selected_color;
     LightMode   selected_light_mode;
+    LightFX     light_fx;          // 当前灯光特效（E键切换）
 
     // 历史记录
     FormationHistory history[HISTORY_SIZE];

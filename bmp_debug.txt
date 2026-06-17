@@ -1,1 +1,1 @@
-sample_2.bmp: 200x200 → 36x36, 174架
+sample_1.bmp: 200x200 -> 34x34, 111 drones

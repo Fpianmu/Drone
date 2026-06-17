@@ -166,7 +166,7 @@ void graphics_init(void)
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
 
-    SetConsoleTitleW(L"无人机编队灯光秀模拟系统");
+    SetConsoleTitleW(L"Drone Light Show Simulator");
 
     // 设置缓冲区/窗口尺寸
     COORD sz = { CONSOLE_WIDTH, CONSOLE_HEIGHT };
@@ -264,7 +264,7 @@ void graphics_draw_stage(const SafetyZone* zone)
     }
 
     // 舞台标题（左上角）
-    fb_puts(x0 + 3, y0, CON_YELLOW, " 表演区域 ");
+    fb_puts(x0 + 3, y0, CON_YELLOW, " Stage ");
 
     // 坐标刻度标记（上下边框每10格一个刻度）
     for (int x = x0 + 10; x < x1; x += 10) {
@@ -336,7 +336,7 @@ void graphics_draw_warnings(const SafetyResult* result)
     if (result->boundary_violations > 0) {
         // 越界警告 - 红色背景效果
         fb_put_wchar(px, row, CON_RED, L'\x26A0');  // ⚠
-        fb_printf(px + 2, row, CON_RED, "越界警告: ");
+        fb_printf(px + 2, row, CON_RED, "Boundary: ");
         int pos = 0;
         char buf[80] = {0};
         for (int i = 0; i < result->boundary_violations && i < 5; i++) {
@@ -352,7 +352,7 @@ void graphics_draw_warnings(const SafetyResult* result)
     if (result->distance_violations > 0) {
         // 碰撞警告 - 黄色
         fb_put_wchar(px, row, CON_YELLOW, L'\x26A0');  // ⚠
-        fb_printf(px + 2, row, CON_YELLOW, "碰撞警告: ");
+        fb_printf(px + 2, row, CON_YELLOW, "Collision: ");
         char buf[80] = {0};
         int pos = 0;
         for (int i = 0; i < result->distance_violations && i < 3; i++) {
@@ -380,15 +380,15 @@ void graphics_draw_title_bar(SimState state, int elapsed_ms)
     }
 
     // 左侧标题
-    fb_printf(2, 0, CON_YELLOW, " 无人机编队灯光秀模拟系统 ");
+    fb_printf(2, 0, CON_YELLOW, " Drone Light Show Simulator ");
 
     // 右侧状态信息
     char status_str[40];
     switch (state) {
     case STATE_IDLE:    snprintf(status_str, sizeof(status_str), "[待命]");    break;
-    case STATE_RUNNING: snprintf(status_str, sizeof(status_str), "[运行中]");  break;
-    case STATE_PAUSED:  snprintf(status_str, sizeof(status_str), "[已暂停]");  break;
-    case STATE_REPLAY:  snprintf(status_str, sizeof(status_str), "[回放中]");  break;
+    case STATE_RUNNING: snprintf(status_str, sizeof(status_str), "[Running]");  break;
+    case STATE_PAUSED:  snprintf(status_str, sizeof(status_str), "[Paused]");  break;
+    case STATE_REPLAY:  snprintf(status_str, sizeof(status_str), "[Replay]");  break;
     }
     fb_printf(CONSOLE_WIDTH - 30, 0, CON_GREEN, " %02d:%02d %s ", min, sec, status_str);
 
@@ -426,8 +426,9 @@ void graphics_draw_bottom_bar(int drone_count, int active_count,
 void graphics_draw_panel(Drone* fleet[], int count, SimState state,
                          const Formation* formation, int elapsed_ms,
                          float sim_speed, LightColor light_color,
-                         LightMode light_mode, int has_warning)
-{
+                         LightMode light_mode, int has_warning,
+                         LightFX light_fx)
+{ (void)light_fx;
     int px = PANEL_LEFT;
     int py = STAGE_TOP;
     int pw = PANEL_WIDTH;  // 面板内容宽度
@@ -445,7 +446,7 @@ void graphics_draw_panel(Drone* fleet[], int count, SimState state,
 
     // ── 面板标题行 ──
     fb_put_wchar(px, py, CON_CYAN, L'\x2551');              // ║
-    fb_printf(px + (pw - 16) / 2, py, CON_YELLOW, "无人机灯光秀模拟");
+    fb_printf(px + (pw - 16) / 2, py, CON_YELLOW, "Drone Show");
     fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x2551');     // ║
     py++;
 
@@ -458,38 +459,38 @@ void graphics_draw_panel(Drone* fleet[], int count, SimState state,
 
     // ── 状态显示 ──
     fb_put_wchar(px, py, CON_CYAN, L'\x2551');              // ║
-    fb_printf(px + 2, py, CON_WHITE, "状态 ");
+    fb_printf(px + 2, py, CON_WHITE, "State: ");
     // 状态指示器图标
     switch (state) {
     case STATE_IDLE:
         fb_put_wchar(px + 9, py, CON_YELLOW, L'\x25CB');    // ○
-        fb_printf(px + 11, py, CON_YELLOW, "待命中...");    break;
+        fb_printf(px + 11, py, CON_YELLOW, "Idle");    break;
     case STATE_RUNNING:
         fb_put_wchar(px + 9, py, CON_GREEN, L'\x25CF');     // ●
-        fb_printf(px + 11, py, CON_GREEN, "运行中");        break;
+        fb_printf(px + 11, py, CON_GREEN, "Running");        break;
     case STATE_PAUSED:
         fb_put_wchar(px + 9, py, CON_YELLOW, L'\x25AE');    // ▮
-        fb_printf(px + 11, py, CON_YELLOW, "已暂停");       break;
+        fb_printf(px + 11, py, CON_YELLOW, "Paused");       break;
     case STATE_REPLAY:
         fb_put_wchar(px + 9, py, CON_CYAN, L'\x25C0');      // ◀
-        fb_printf(px + 11, py, CON_CYAN, "回放中");         break;
+        fb_printf(px + 11, py, CON_CYAN, "Replay");         break;
     }
     fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x2551');     // ║
     py++;
 
     // ── 基本参数区 ──
     fb_put_wchar(px, py, CON_CYAN, L'\x2551');
-    fb_printf(px + 2, py, CON_WHITE, "时间 %02d:%02d", min, sec);
+    fb_printf(px + 2, py, CON_WHITE, "Time: %02d:%02d", min, sec);
     fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x2551');
     py++;
 
     fb_put_wchar(px, py, CON_CYAN, L'\x2551');
-    fb_printf(px + 2, py, CON_WHITE, "数量 %d 架", count);
+    fb_printf(px + 2, py, CON_WHITE, "Num: %d", count);
     fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x2551');
     py++;
 
     fb_put_wchar(px, py, CON_CYAN, L'\x2551');
-    fb_printf(px + 2, py, CON_WHITE, "速度 %.2fx", (double)sim_speed);
+    fb_printf(px + 2, py, CON_WHITE, "Speed: %.2fx", (double)sim_speed);
     fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x2551');
     py++;
 
@@ -503,7 +504,7 @@ void graphics_draw_panel(Drone* fleet[], int count, SimState state,
     // ── 编队信息 ──
     if (formation != NULL) {
         fb_put_wchar(px, py, CON_CYAN, L'\x2551');
-        fb_printf(px + 2, py, CON_YELLOW, "当前编队");
+        fb_printf(px + 2, py, CON_YELLOW, "Formation");
         fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x2551');
         py++;
 
@@ -514,27 +515,27 @@ void graphics_draw_panel(Drone* fleet[], int count, SimState state,
 
         const char* pn = "未知";
         switch (formation->pattern) {
-        case PAT_CIRCLE:   pn = "圆形";    break;
-        case PAT_SQUARE:   pn = "正方形";  break;
-        case PAT_TRIANGLE: pn = "三角形";  break;
-        case PAT_DIAMOND:  pn = "菱形";    break;
-        case PAT_STAR:     pn = "五角星";  break;
-        case PAT_PENTAGON: pn = "五边形";  break;
-        case PAT_HEXAGON:  pn = "六边形";  break;
-        case PAT_HEART:    pn = "心形";    break;
-        case PAT_SPIRAL:   pn = "螺旋";    break;
-        case PAT_LINE:     pn = "直线";    break;
-        case PAT_ARROW:    pn = "箭头";    break;
-        case PAT_CROSS:    pn = "十字";    break;
-        case PAT_ARC:      pn = "弧形";    break;
-        case PAT_GRID:     pn = "网格";    break;
-        case PAT_RANDOM:   pn = "随机散布"; break;
+        case PAT_CIRCLE:   pn = "Circle";    break;
+        case PAT_SQUARE:   pn = "Square";   break;
+        case PAT_TRIANGLE: pn = "Triangle"; break;
+        case PAT_DIAMOND:  pn = "Diamond";  break;
+        case PAT_STAR:     pn = "Star";     break;
+        case PAT_PENTAGON: pn = "Pentagon"; break;
+        case PAT_HEXAGON:  pn = "Hexagon";  break;
+        case PAT_HEART:    pn = "Heart";    break;
+        case PAT_SPIRAL:   pn = "Spiral";   break;
+        case PAT_LINE:     pn = "Line";     break;
+        case PAT_ARROW:    pn = "Arrow";    break;
+        case PAT_CROSS:    pn = "Cross";    break;
+        case PAT_ARC:      pn = "Arc";      break;
+        case PAT_GRID:     pn = "Grid";     break;
+        case PAT_RANDOM:   pn = "Random";   break;
         case PAT_TEXT:     pn = formation->display_text; break;
-        case PAT_IMAGE:    pn = "BMP图片"; break;
+        case PAT_IMAGE:    pn = "BMP";      break;
         default:           break;
         }
         fb_put_wchar(px, py, CON_CYAN, L'\x2551');
-        fb_printf(px + 2, py, CON_WHITE, "图案 %s", pn);
+        fb_printf(px + 2, py, CON_WHITE, "Pat %s", pn);
         fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x2551');
         py++;
 
@@ -548,7 +549,7 @@ void graphics_draw_panel(Drone* fleet[], int count, SimState state,
 
     // ── 灯光设置 ──
     fb_put_wchar(px, py, CON_CYAN, L'\x2551');
-    fb_printf(px + 2, py, CON_YELLOW, "灯光设置");
+    fb_printf(px + 2, py, CON_YELLOW, "Light");
     fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x2551');
     py++;
 
@@ -567,7 +568,7 @@ void graphics_draw_panel(Drone* fleet[], int count, SimState state,
     default:           break;
     }
     fb_put_wchar(px, py, CON_CYAN, L'\x2551');
-    fb_printf(px + 2, py, CON_WHITE, "颜色 ");
+    fb_printf(px + 2, py, CON_WHITE, "Color ");
     fb_put_wchar(px + 8, py, ccol, L'\x25CF');  // ● 彩色圆点
     fb_printf(px + 10, py, ccol, "%s", cname);
     fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x2551');
@@ -575,14 +576,14 @@ void graphics_draw_panel(Drone* fleet[], int count, SimState state,
 
     // 模式
     fb_put_wchar(px, py, CON_CYAN, L'\x2551');
-    fb_printf(px + 2, py, CON_WHITE, "模式 ");
+    fb_printf(px + 2, py, CON_WHITE, "Mode ");
     switch (light_mode) {
     case LIGHT_STEADY:
-        fb_printf(px + 8, py, CON_GREEN, "常亮");   break;
+        fb_printf(px + 8, py, CON_GREEN, "On");   break;
     case LIGHT_BLINK:
-        fb_printf(px + 8, py, CON_YELLOW, "闪烁");  break;
+        fb_printf(px + 8, py, CON_YELLOW, "Blink");  break;
     case LIGHT_OFF:
-        fb_printf(px + 8, py, CON_GRAY, "关闭");    break;
+        fb_printf(px + 8, py, CON_GRAY, "Off");    break;
     }
     fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x2551');
     py++;
@@ -594,19 +595,19 @@ void graphics_draw_panel(Drone* fleet[], int count, SimState state,
     fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x2563');
     py++;
 
-    // ── 安全状态 ──
+    // ── 安全State: ──
     fb_put_wchar(px, py, CON_CYAN, L'\x2551');
-    fb_printf(px + 2, py, CON_YELLOW, "安全状态");
+    fb_printf(px + 2, py, CON_YELLOW, "Safety");
     fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x2551');
     py++;
 
     fb_put_wchar(px, py, CON_CYAN, L'\x2551');
     if (has_warning) {
         fb_put_wchar(px + 2, py, CON_RED, L'\x26A0');   // ⚠
-        fb_printf(px + 4, py, CON_RED, " 发现警告!");
+        fb_printf(px + 4, py, CON_RED, " WARNING!");
     } else {
         fb_put_wchar(px + 2, py, CON_GREEN, L'\x2714');  // ✔
-        fb_printf(px + 4, py, CON_GREEN, " 全部正常");
+        fb_printf(px + 4, py, CON_GREEN, " Safe");
     }
     fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x2551');
     py++;
@@ -618,35 +619,35 @@ void graphics_draw_panel(Drone* fleet[], int count, SimState state,
     fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x2563');
     py++;
 
-    // ── 操作键（紧凑两列布局） ──
+    // ── Keys（紧凑两列布局） ──
     fb_put_wchar(px, py, CON_CYAN, L'\x2551');
-    fb_printf(px + 2, py, CON_YELLOW, "操作键");
+    fb_printf(px + 2, py, CON_YELLOW, "Keys");
     fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x2551');
     py++;
 
     // 左列
     fb_put_wchar(px, py, CON_CYAN, L'\x2551');
-    fb_printf(px + 1, py, CON_WHITE, "S    开始  P  暂停");
+    fb_printf(px + 1, py, CON_WHITE, "S Start  P Pause");
     fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x2551');
     py++;
 
     fb_put_wchar(px, py, CON_CYAN, L'\x2551');
-    fb_printf(px + 1, py, CON_WHITE, "Q    停止  ESC 退出");
+    fb_printf(px + 1, py, CON_WHITE, "Q Stop   ESC Quit");
     fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x2551');
     py++;
 
     fb_put_wchar(px, py, CON_CYAN, L'\x2551');
-    fb_printf(px + 1, py, CON_WHITE, "<->  图案  ^v  调速");
+    fb_printf(px + 1, py, CON_WHITE, "<> Pat  ^v Speed");
     fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x2551');
     py++;
 
     fb_put_wchar(px, py, CON_CYAN, L'\x2551');
-    fb_printf(px + 1, py, CON_WHITE, "C    换色  B  闪烁");
+    fb_printf(px + 1, py, CON_WHITE, "C Color  B Blink");
     fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x2551');
     py++;
 
     fb_put_wchar(px, py, CON_CYAN, L'\x2551');
-    fb_printf(px + 1, py, CON_WHITE, "T    文字  H  历史");
+    fb_printf(px + 1, py, CON_WHITE, "T Text   H Hist");
     fb_put_wchar(px + pw - 1, py, CON_CYAN, L'\x2551');
     py++;
 
@@ -670,11 +671,11 @@ void graphics_draw_warn_panel(char warn_log[][MAX_WARNING_LEN], int warn_count)
     int pw = PANEL_WIDTH - 2;
 
     // 标题行
-    fb_printf(px, py, CON_YELLOW, "── 警告日志 ──");
+    fb_printf(px, py, CON_YELLOW, "-- Warnings --");
     py++;
 
     if (warn_count == 0) {
-        fb_printf(px, py, CON_GREEN, "  暂无警告");
+        fb_printf(px, py, CON_GREEN, "  None");
         return;
     }
 
@@ -727,7 +728,7 @@ void graphics_show_welcome(void)
     // ── 标题区 ──
     // 装饰性无人机图标
     fb_put_wchar(1, cy, CON_CYAN, L'\x2551');
-    fb_printf(cx - 20, cy, CON_YELLOW, "  ✈   ✈   ✈   无人机编队灯光秀模拟系统   ✈   ✈   ✈  ");
+    fb_printf(cx - 20, cy, CON_YELLOW, "  ✈   ✈   ✈   Drone Light Show Simulator   ✈   ✈   ✈  ");
     fb_put_wchar(CONSOLE_WIDTH - 2, cy, CON_CYAN, L'\x2551');
     cy++;
 
@@ -746,12 +747,12 @@ void graphics_show_welcome(void)
 
     // 学校信息
     fb_put_wchar(1, cy, CON_CYAN, L'\x2551');
-    fb_printf(cx - 20, cy, CON_GREEN, "华中科技大学 · 机械科学与工程学院 · 测控专业");
+    fb_printf(cx - 20, cy, CON_GREEN, "HUST · MSE · Instrumentation");
     fb_put_wchar(CONSOLE_WIDTH - 2, cy, CON_CYAN, L'\x2551');
     cy++;
 
     fb_put_wchar(1, cy, CON_CYAN, L'\x2551');
-    fb_printf(cx - 14, cy, CON_GREEN, "C语言课程设计 · 2025级");
+    fb_printf(cx - 14, cy, CON_GREEN, "C Course Design 2025");
     fb_put_wchar(CONSOLE_WIDTH - 2, cy, CON_CYAN, L'\x2551');
     cy++;
 
@@ -772,9 +773,9 @@ void graphics_show_welcome(void)
     // ── 操作说明（三列布局） ──
     // 列标题
     fb_put_wchar(1, cy, CON_CYAN, L'\x2551');
-    fb_printf(5, cy, CON_YELLOW, "模拟控制");
-    fb_printf(35, cy, CON_YELLOW, "编队切换");
-    fb_printf(65, cy, CON_YELLOW, "灯光效果");
+    fb_printf(5, cy, CON_YELLOW, "Sim Control");
+    fb_printf(35, cy, CON_YELLOW, "Formation");
+    fb_printf(65, cy, CON_YELLOW, "Lighting");
     fb_put_wchar(CONSOLE_WIDTH - 2, cy, CON_CYAN, L'\x2551');
     cy++;
 
@@ -785,51 +786,51 @@ void graphics_show_welcome(void)
     fb_put_wchar(CONSOLE_WIDTH - 2, cy, CON_CYAN, L'\x2551');
     cy++;
 
-    // 操作键行1
+    // Keys行1
     fb_put_wchar(1, cy, CON_CYAN, L'\x2551');
-    fb_printf(5, cy, CON_WHITE,  "S / Enter   开始模拟");
+    fb_printf(5, cy, CON_WHITE,  "S / Enter   Start");
     fb_printf(35, cy, CON_WHITE, "← →        切换图案");
     fb_printf(65, cy, CON_WHITE, "C           切换颜色");
     fb_put_wchar(CONSOLE_WIDTH - 2, cy, CON_CYAN, L'\x2551');
     cy++;
 
-    // 操作键行2
+    // Keys行2
     fb_put_wchar(1, cy, CON_CYAN, L'\x2551');
-    fb_printf(5, cy, CON_WHITE,  "P / Space   暂停/继续");
+    fb_printf(5, cy, CON_WHITE,  "P / Space   Pause");
     fb_printf(35, cy, CON_WHITE, "T           文字编队");
-    fb_printf(65, cy, CON_WHITE, "B           闪烁开关");
+    fb_printf(65, cy, CON_WHITE, "B           Blink");
     fb_put_wchar(CONSOLE_WIDTH - 2, cy, CON_CYAN, L'\x2551');
     cy++;
 
-    // 操作键行3
+    // Keys行3
     fb_put_wchar(1, cy, CON_CYAN, L'\x2551');
-    fb_printf(5, cy, CON_WHITE,  "Q           停止模拟");
-    fb_printf(35, cy, CON_WHITE, "H           历史编队");
+    fb_printf(5, cy, CON_WHITE,  "Q           Stop");
+    fb_printf(35, cy, CON_WHITE, "H           History");
     fb_printf(65, cy, CON_WHITE, "            8种颜色");
     fb_put_wchar(CONSOLE_WIDTH - 2, cy, CON_CYAN, L'\x2551');
     cy++;
 
-    // 操作键行4
+    // Keys行4
     fb_put_wchar(1, cy, CON_CYAN, L'\x2551');
-    fb_printf(5, cy, CON_WHITE,  "↑ ↓        调节速度");
+    fb_printf(5, cy, CON_WHITE,  "↑ ↓        Speed");
     fb_printf(35, cy, CON_WHITE, "            15种图案");
-    fb_printf(65, cy, CON_WHITE, "            常亮/闪烁");
+    fb_printf(65, cy, CON_WHITE, "            Steady/Blink");
     fb_put_wchar(CONSOLE_WIDTH - 2, cy, CON_CYAN, L'\x2551');
     cy++;
 
-    // 操作键行5
+    // Keys行5
     fb_put_wchar(1, cy, CON_CYAN, L'\x2551');
     fb_printf(5, cy, CON_WHITE,  "ESC         退出程序");
-    fb_printf(35, cy, CON_GRAY,  "支持: 圆形/方形/三角/");
-    fb_printf(65, cy, CON_GRAY,  "支持: 红/绿/蓝/白/");
+    fb_printf(35, cy, CON_GRAY,  "Pat: Circle/Square/Tri/");
+    fb_printf(65, cy, CON_GRAY,  "Colors: R/G/B/W/");
     fb_put_wchar(CONSOLE_WIDTH - 2, cy, CON_CYAN, L'\x2551');
     cy++;
 
     // 补充说明行
     fb_put_wchar(1, cy, CON_CYAN, L'\x2551');
     fb_printf(5, cy, CON_GRAY,  "              ");
-    fb_printf(35, cy, CON_GRAY, "菱形/星形/心形/螺旋等");
-    fb_printf(65, cy, CON_GRAY, "黄/青/紫/橙");
+    fb_printf(35, cy, CON_GRAY, "Diamond/Star/Heart/Spiral");
+    fb_printf(65, cy, CON_GRAY, "Y/C/P/O");
     fb_put_wchar(CONSOLE_WIDTH - 2, cy, CON_CYAN, L'\x2551');
     cy++;
 
@@ -849,11 +850,11 @@ void graphics_show_welcome(void)
 
     // ── 底部提示（闪烁效果用颜色交替模拟） ──
     cy += 2;
-    fb_printf(cx - 12, cy, CON_GREEN, "<< 按任意键开始模拟 >>");
+    fb_printf(cx - 12, cy, CON_GREEN, "<< Press Any Key >>");
 
     // 选题信息
     cy += 2;
-    fb_printf(cx - 18, cy, CON_GRAY, "选题 18: 无人机编队灯光秀模拟 | 指导教师: 周凯波");
+    fb_printf(cx - 18, cy, CON_GRAY, "Project 18: Drone Light Show Simulator");
 
     fb_flush();
     _getch();
