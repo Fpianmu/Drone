@@ -1,40 +1,41 @@
-# Drone Formation Light Show Simulator
+# 无人机编队灯光秀模拟系统
 
-HUST · MSE · Instrumentation — C Course Design Project
+华中科技大学 机械科学与工程学院 测控专业 C 语言课程设计
 
-**Topic 18: UAV Formation Light Show Simulation**
+**选题 18：无人机编队灯光秀模拟**
 
 ---
 
-## Features
+## 功能
 
-| Module | Description |
-|--------|-------------|
-| **Formation** | 15 geometric patterns + text + BMP image rendering |
-| **Trajectory** | Waypoint-based linear interpolation with random departure delays |
-| **Lighting** | 8 colors, steady/blink, 4 dynamic FX (wave/flow/alternate/rainbow-flow) |
-| **Safety** | Boundary check + proximity detection + warning log |
-| **History** | Last 5 formations quick recall |
-| **Image** | Load BMP and convert to drone pixel grid |
+| 模块 | 说明 |
+|------|------|
+| **编队初始化** | 设置无人机数量、初始位置、飞行高度 |
+| **图案生成** | 15种几何图案（圆/方/三角/星形/心形/螺旋…） + 文字点阵 + BMP图片 |
+| **轨迹插值** | 航点间逐帧线性插值，随机出发延迟减少空中交叉 |
+| **灯光控制** | 8种颜色、常亮/闪烁、4种动态特效（波浪/流水灯/交替/彩虹流水） |
+| **安全检测** | 边界越界检测 + 间距碰撞预警 + 警告日志面板 |
+| **历史记录** | 最近5次编队一键回溯 |
+| **图片编队** | 加载BMP图片，转换为无人机像素阵列 |
 
-## Keys
+## 操作键
 
-| Key | Action |
-|-----|--------|
-| `S` | Start simulation |
-| `P` | Pause / Resume |
-| `Q` | Stop |
-| `← →` | Cycle patterns (15 geometric + text + image) |
-| `↑ ↓` | Adjust speed |
-| `C` | Cycle light color |
-| `B` | Toggle blink |
-| `E` | Cycle light FX (None/Wave/Flow/Alternate/Rainbow) |
-| `T` | Input text formation (Chinese/English) |
-| `I` | Load BMP image formation |
-| `H` | Recall formation history |
-| `ESC` | Quit |
+| 按键 | 功能 |
+|------|------|
+| `S` | 开始模拟 |
+| `P` | 暂停 / 继续 |
+| `Q` | 停止 |
+| `← →` | 切换图案（15种几何 + 文字 + 图片） |
+| `↑ ↓` | 调节速度 |
+| `C` | 切换灯光颜色（红/绿/蓝/白/黄/青/紫/橙） |
+| `B` | 闪烁开关 |
+| `E` | 切换灯光特效（无/波浪/流水灯/交替/彩虹流水） |
+| `T` | 输入文字编队（支持中英文） |
+| `I` | 加载BMP图片编队 |
+| `H` | 历史编队回溯 |
+| `ESC` | 退出 |
 
-## Build
+## 编译
 
 ```bash
 g++ -std=c++11 -Wall -o drone_show.exe \
@@ -46,32 +47,32 @@ g++ -std=c++11 -Wall -o drone_show.exe \
     -I include -lm -lgdi32
 ```
 
-**Requirements:** GCC / MinGW-w64, Windows Console API only (no external libs)
+**环境：** GCC / MinGW-w64，仅用 Windows Console API，无需任何第三方图形库。
 
-## Project Structure
+## 项目结构
 
 ```
-├── main.cpp              Entry point
-├── commands.txt           Course design task description
-├── DESIGN_REPORT.md       Design report
+├── main.cpp              程序入口
+├── commands.txt           课程设计任务书
+├── DESIGN_REPORT.md       软件系统需求分析与设计报告
 ├── include/
-│   ├── common.h           Shared types, constants, console colors
-│   ├── drone.h            Drone entity module
-│   ├── light.h            Lighting control module
-│   ├── formation.h        Formation & pattern generation
-│   ├── trajectory.h       Trajectory & interpolation
-│   ├── safety.h           Safety detection & collision avoidance
-│   ├── graphics.h         Console rendering module
-│   ├── ui.h               User input module
-│   ├── file_io.h          File I/O module
-│   └── controller.h       Main controller module
-└── src/                   Source implementations
+│   ├── common.h           公共类型、常量、控制台颜色
+│   ├── drone.h            无人机实体模块
+│   ├── light.h            灯光控制模块
+│   ├── formation.h        编队与图案生成模块
+│   ├── trajectory.h       轨迹与插值模块
+│   ├── safety.h           安全检测模块
+│   ├── graphics.h         控制台渲染模块
+│   ├── ui.h               用户输入模块
+│   ├── file_io.h          文件读写模块
+│   └── controller.h       主控制器模块
+└── src/                   源文件实现
 ```
 
-## Technical Notes
+## 技术要点
 
-- **Rendering:** CHAR_INFO framebuffer + WriteConsoleOutputW, zero flicker
-- **Text:** GDI per-character rendering to 12x12 pixel grid for Chinese/English
-- **Image:** GDI LoadImage + StretchBlt + pixel sampling (PCtoLCD2002-style)
-- **Trajectory:** Random departure delay (0-500ms) reduces mid-air overlaps
-- **UI:** ASCII-only panel to prevent CJK double-width border misalignment
+- **渲染：** CHAR_INFO 帧缓冲 + WriteConsoleOutputW 一次性写入，零闪烁
+- **文字：** GDI 逐字渲染到 12×12 像素格，支持中英文
+- **图片：** GDI LoadImage → StretchBlt → 逐像素采样（类似PCtoLCD2002）
+- **轨迹：** 随机出发延迟（0~500ms）错开到达时间，减少空中交叉
+- **界面：** 面板使用ASCII英文避免中文全角/半角导致的边框错位
