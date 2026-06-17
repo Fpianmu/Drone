@@ -175,11 +175,13 @@ void graphics_init(void)
     SMALL_RECT rect = { 0, 0, CONSOLE_WIDTH - 1, CONSOLE_HEIGHT - 1 };
     SetConsoleWindowInfo(g_hOut, TRUE, &rect);
 
-    // 隐藏光标，启用鼠标输入
+    // 隐藏光标，启用鼠标输入（保留原有模式）
     CONSOLE_CURSOR_INFO ci = { 1, FALSE };
     SetConsoleCursorInfo(g_hOut, &ci);
     HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE);
-    DWORD mode = ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS;
+    DWORD mode = 0;
+    GetConsoleMode(hIn, &mode);
+    mode |= ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS;
     SetConsoleMode(hIn, mode);
 
     // 锁定控制台窗口尺寸

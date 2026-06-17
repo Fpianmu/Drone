@@ -41,40 +41,38 @@ static UICmd poll_mouse(void)
 
 UICmd ui_poll_input(void)
 {
-    // 先检查鼠标
-    UICmd mcmd = poll_mouse();
-    if (mcmd != UI_CMD_NONE) return mcmd;
-
-    // 再检查键盘
-    if (!_kbhit()) return UI_CMD_NONE;
-
-    int ch = _getch();
-    if (ch == 0xE0 || ch == 0x00) {
-        ch = _getch();
+    // 键盘优先
+    if (_kbhit()) {
+        int ch = _getch();
+        if (ch == 0xE0 || ch == 0x00) {
+            ch = _getch();
+            switch (ch) {
+            case KEY_UP:    return UI_CMD_SPEED_UP;
+            case KEY_DOWN:  return UI_CMD_SPEED_DOWN;
+            case KEY_LEFT:  return UI_CMD_PREV_PATTERN;
+            case KEY_RIGHT: return UI_CMD_NEXT_PATTERN;
+            default:        return UI_CMD_NONE;
+            }
+        }
         switch (ch) {
-        case KEY_UP:    return UI_CMD_SPEED_UP;
-        case KEY_DOWN:  return UI_CMD_SPEED_DOWN;
-        case KEY_LEFT:  return UI_CMD_PREV_PATTERN;
-        case KEY_RIGHT: return UI_CMD_NEXT_PATTERN;
-        default:        return UI_CMD_NONE;
+        case 's': case 'S':     return UI_CMD_START;
+        case 'p': case 'P':     return UI_CMD_PAUSE;
+        case 'q': case 'Q':     return UI_CMD_STOP;
+        case 'c': case 'C':     return UI_CMD_CHANGE_COLOR;
+        case 'b': case 'B':     return UI_CMD_TOGGLE_BLINK;
+        case 't': case 'T':     return UI_CMD_TEXT_INPUT;
+        case 'h': case 'H':     return UI_CMD_HISTORY;
+        case 'i': case 'I':     return UI_CMD_IMAGE;
+        case 'e': case 'E':     return UI_CMD_FX_NEXT;
+        case KEY_ESC:           return UI_CMD_EXIT;
+        case KEY_ENTER:         return UI_CMD_START;
+        case KEY_SPACE:         return UI_CMD_PAUSE;
+        default:                return UI_CMD_NONE;
         }
     }
 
-    switch (ch) {
-    case 's': case 'S':     return UI_CMD_START;
-    case 'p': case 'P':     return UI_CMD_PAUSE;
-    case 'q': case 'Q':     return UI_CMD_STOP;
-    case 'c': case 'C':     return UI_CMD_CHANGE_COLOR;
-    case 'b': case 'B':     return UI_CMD_TOGGLE_BLINK;
-    case 't': case 'T':     return UI_CMD_TEXT_INPUT;
-    case 'h': case 'H':     return UI_CMD_HISTORY;
-    case 'i': case 'I':     return UI_CMD_IMAGE;
-    case 'e': case 'E':     return UI_CMD_FX_NEXT;
-    case KEY_ESC:           return UI_CMD_EXIT;
-    case KEY_ENTER:         return UI_CMD_START;
-    case KEY_SPACE:         return UI_CMD_PAUSE;
-    default:                return UI_CMD_NONE;
-    }
+    // 没键盘输入时才检查鼠标
+    return poll_mouse();
 }
 
 int ui_input_int(const char* prompt, int min_val, int max_val)
