@@ -585,12 +585,12 @@ int gen_text(Point2f center, float char_size, const char* text,
     HDC hScrDC = GetDC(NULL);
     HDC hDC    = CreateCompatibleDC(hScrDC);
 
-    // 每个字符的像素格：中文 12×12，英文 6×12（适配舞台80×40）
-    int gridH   = 12;     // 统一 12 像素高
-    int wideW   = 12;     // 中文 12 像素宽
-    int narrowW = 6;      // 英文 6 像素宽
+    // 每个字符的像素格：中文 16×16，英文 8×16
+    int gridH   = 16;     // 统一 16 像素高
+    int wideW   = 16;     // 中文 16 像素宽
+    int narrowW = 8;      // 英文 8 像素宽
 
-    // 创建 12px 高的字体，刚好填满 12px 格子
+    // 创建 16px 高的字体，刚好填满 16px 格子
     HFONT hFont = CreateFontW(gridH, 0, 0, 0, FW_NORMAL,
         FALSE, FALSE, FALSE, DEFAULT_CHARSET,
         OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
@@ -821,9 +821,9 @@ void pattern_recommend(PatternType type, int text_len,
     case PAT_TEXT:
         // GDI 渲染：char_size=输出像素间距（1~2格较合适）
         if (text_len <= 0) text_len = 3;
-        *out_count = text_len * 80;   // 每字约80架（12×12=144像素，约1/2亮）
-        if (*out_count > 450) *out_count = 450;
-        if (*out_count < 50)  *out_count = 50;
+        *out_count = text_len * 120;   // 每字约120架（16×16=256像素，约1/2亮）
+        if (*out_count > 480) *out_count = 480;
+        if (*out_count < 80)  *out_count = 80;
         *out_scale = 3.0f;   // char_size=1，每个像素1格，12×1=12格高，紧凑
         break;
     case PAT_IMAGE:
