@@ -290,6 +290,60 @@ void ctrl_handle_command(Controller* ctrl, UICmd cmd)
         }
         break;
 
+    case UI_CMD_MOUSE_CLICK:
+        {
+            int mx = g_mouse_click.col, my = g_mouse_click.row;
+            int btn = g_mouse_click.button;
+
+            // 检查是否点击了面板按键区（右侧面板区域）
+            if (mx >= PANEL_LEFT && mx < CONSOLE_WIDTH) {
+                // 面板按键行: py 起点 STAGE_TOP+1, 每行递增
+                // "Keys"标题行 + "S Start P Pause" ... 共7行
+                // 面板按键行估计位置
+                int krow = STAGE_TOP + 24;  // Keys 标题行估计位置
+                if (my == krow + 1)      { ctrl_handle_command(ctrl, UI_CMD_START);  break; }
+                if (my == krow + 2)      { ctrl_handle_command(ctrl, UI_CMD_PAUSE);  break; }
+                if (my == krow + 3)      { ctrl_handle_command(ctrl, UI_CMD_CHANGE_COLOR); break; }
+                if (my == krow + 4)      { ctrl_handle_command(ctrl, UI_CMD_TOGGLE_BLINK); break; }
+                if (my == krow + 5)      { ctrl_handle_command(ctrl, UI_CMD_FX_NEXT); break; }
+                if (my == krow + 6)      { ctrl_handle_command(ctrl, UI_CMD_TEXT_INPUT); break; }
+                if (my == krow + 7)      { ctrl_handle_command(ctrl, UI_CMD_IMAGE); break; }
+                if (my == krow + 8)      { ctrl_handle_command(ctrl, UI_CMD_HISTORY); break; }
+            }
+
+            // 检查是否点击了舞台内的无人机
+            if (mx >= STAGE_LEFT && mx < STAGE_LEFT + STAGE_COLS
+             && my >= STAGE_TOP  && my < STAGE_TOP + STAGE_ROWS) {
+                int found = 0;
+                for (int i = 0; i < ctrl->drone_count; i++) {
+                    if (!ctrl->fleet[i] || !ctrl->fleet[i]->is_active) continue;
+                    int dx, dy;
+                    drone_get_display_pos(ctrl->fleet[i], &dx, &dy);
+                    if (abs(dx - mx) <= 1 && abs(dy - my) <= 1) {
+                        // 找到被点击的无人机 => 切换它的灯光颜色
+                        LightColor cur = ctrl->fleet[i]->light.color;
+                        cur = (LightColor)((int)cur + 1);
+                        if (cur > COLOR_ORANGE) cur = COLOR_RED;
+                        drone_set_light_color(ctrl->fleet[i], cur);
+                        snprintf(ctrl->warn_log[ctrl->warn_log_count % WARN_LOG_SIZE],
+                                 MAX_WARNING_LEN, "D#%d: %s", ctrl->fleet[i]->id,
+                                 (cur==COLOR_RED)?"Red":(cur==COLOR_GREEN)?"Green":
+                                 (cur==COLOR_BLUE)?"Blue":(cur==COLOR_WHITE)?"White":
+                                 (cur==COLOR_YELLOW)?"Yellow":(cur==COLOR_CYAN)?"Cyan":
+                                 (cur==COLOR_PURPLE)?"Purple":"Orange");
+                        ctrl->warn_log_count++;
+                        found = 1;
+                        break;
+                    }
+                }
+                if (!found && btn == 2) {
+                    // 右键空白区域 → 开始模拟
+                    ctrl_handle_command(ctrl, UI_CMD_START);
+                }
+            }
+        }
+        break;
+
     case UI_CMD_FX_NEXT:
         // 循环切换灯光特效
         ctrl->light_fx = (LightFX)((int)ctrl->light_fx + 1);
