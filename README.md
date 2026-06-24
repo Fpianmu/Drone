@@ -54,7 +54,7 @@ g++ -std=c++11 -Wall -o drone_show.exe \
 ```
 ├── main.cpp              程序入口
 ├── commands.txt           课程设计任务书
-├── DESIGN_REPORT.md       软件系统需求分析与设计报告
+├── DESIGN_REPORT.docx     软件系统需求分析与设计报告（Word文档）
 ├── flowchart.md           系统流程图（Mermaid格式，8张图）
 ├── README.md              本文件
 ├── include/
@@ -73,12 +73,12 @@ g++ -std=c++11 -Wall -o drone_show.exe \
 
 ## 技术要点
 
-- **渲染：** CHAR_INFO 帧缓冲 + WriteConsoleOutputW，零闪烁（需最大化窗口避免Terminal视口偏移）
+- **渲染：** CHAR_INFO 帧缓冲 + WriteConsoleOutputW 一次性写入控制台（需最大化窗口避免 Terminal 视口偏移）
 - **文字：** GDI 逐字渲染到 12×12 像素格 → 逐像素采样（与PCtoLCD2002同原理）
 - **图片：** GDI LoadImage → StretchBlt → 逐像素采样
 - **仿真：** 离散时间步长驱动，轨迹线性插值，随机出发延迟减小同步交叉
 - **安全：** 每帧O(n)越界检测 + O(n²)间距检测，高度感知警告
-- **UI：** ASCII面板避免CJK全角/半角边框错位，双缓冲控制台渲染
+- **UI：** ASCII面板避免 CJK 全角/半角边框错位
 
 ## 已知限制
 
