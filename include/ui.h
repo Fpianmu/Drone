@@ -35,12 +35,6 @@ typedef enum {
 // 看一下有没有按键（不等，立刻返回）。有就返回对应的操作码，没有返回 UI_CMD_NONE。
 UICmd ui_poll_input(void);
 
-// 等着用户输入一个在 [min_val, max_val] 范围内的整数。
-int ui_input_int(const char* prompt, int min_val, int max_val);
-
-// 问用户 Y/N 确认。
-int ui_confirm(const char* message);
-
 // 显示主菜单，返回用户选的序号（从0开始）。
 int ui_show_menu(void);
 

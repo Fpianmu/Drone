@@ -62,42 +62,6 @@ UICmd ui_poll_input(void)
     }
 }
 
-/* ==================== 输入对话框 ==================== */
-
-int ui_input_int(const char* prompt, int min_val, int max_val)
-{
-    int value;
-    char buffer[32];
-
-    while (1) {
-        printf("\n%s (%d-%d): ", prompt, min_val, max_val);
-        fflush(stdout);
-
-        if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
-            return min_val;  // 读取失败 → 返回最小值
-        }
-
-        if (sscanf(buffer, "%d", &value) == 1) {
-            if (value >= min_val && value <= max_val) {
-                return value;
-            }
-        }
-
-        printf("输入无效，请重新输入！\n");
-    }
-}
-
-int ui_confirm(const char* message)
-{
-    printf("\n%s (Y/N): ", message);
-    fflush(stdout);
-
-    int ch = _getch();
-    printf("%c\n", ch);
-
-    return (ch == 'y' || ch == 'Y') ? 1 : 0;
-}
-
 int ui_show_menu(void)
 {
     /* 自包含菜单：设置 UTF-8 代码页，使用标准 printf 输出 */
