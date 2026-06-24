@@ -1,14 +1,14 @@
 /**
- * @file    main.cpp
- * @brief   无人机编队灯光秀模拟系统 —— 程序入口
+
+
  *
  * @note    华中科技大学 机械科学与工程学院
  *          测控专业 2025 级 C 语言课程设计
  *          选题：18. 无人机编队灯光秀模拟
  *
- * @author  [你的名字]     —— 核心仿真引擎（drone, formation, trajectory, safety, light）
- * @author  [队友名字]     —— 图形渲染与交互（graphics, ui, file_io, controller）
- * @date    2026-06-08
+
+
+
  *
  * 编译环境：GCC / MinGW-w64（无需额外图形库）
  * 编译命令：g++ -std=c++11 -o drone_show.exe main.cpp src/drone.cpp src/light.cpp
@@ -28,7 +28,7 @@
 #include "include/controller.h"
 
 /**
- * @brief 程序入口函数
+
  *
  * 流程：
  *   1. 初始化随机数种子

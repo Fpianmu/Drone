@@ -1,7 +1,7 @@
 /*
  * graphics.cpp —— 控制台渲染模块实现
  *
- * 核心思路：在内存中维护一个 CHAR_INFO[45][120] 帧缓冲，
+ * 核心思路：在内存中维护一个 CHAR_INFO[40][120] 帧缓冲，
  * 所有绘制操作只改这个数组，不碰控制台。
  * 每帧结束时用 WriteConsoleOutputW 一次性写入，彻底消除闪烁。
  *
@@ -29,7 +29,7 @@ static HANDLE g_hOut = NULL;
 /* ==================== 内部辅助 ==================== */
 
 /**
- * @brief 清空帧缓冲（空格 + 白字黑底）
+
  */
 static void fb_clear(void)
 {
@@ -42,7 +42,7 @@ static void fb_clear(void)
 }
 
 /**
- * @brief 在帧缓冲中放置一个 UTF-8 字符（自动转 WCHAR）
+
  *
  * 注意：简易实现假定输入是 1-3 字节 UTF-8（● ┌─┐ 等在 3 字节内），
  * 多字节字符需逐字节解析。为了可靠，改用已知的 WCHAR 直接传入。
@@ -57,7 +57,7 @@ static void fb_put_wchar(int col, int row, ConsoleColor color, WCHAR wc)
 }
 
 /**
- * @brief 在帧缓冲中放置一个 UTF-8 字符串
+
  *
  * 逐个字符写入，非 ASCII 字符暂时用 * 代替（稳健做法）。
  * 对于 ● ┌─┐ 等特殊字符，使用 fb_put_wchar 直接传入 WCHAR。
@@ -106,7 +106,7 @@ static void fb_puts(int col, int row, ConsoleColor color, const char* str)
 }
 
 /**
- * @brief 在帧缓冲中格式化输出字符串
+
  */
 static void fb_printf(int col, int row, ConsoleColor color,
                        const char* fmt, ...)
@@ -124,16 +124,16 @@ static SHORT g_prevBufW = 0;
 static SHORT g_prevBufH = 0;
 
 /**
- * @brief 将帧缓冲写入控制台
+
  *
- * 只在检测到控制台尺寸变化时才清空全缓冲区，平时直接覆盖写入120×45区域。
+ * 只在检测到控制台尺寸变化时才清空全缓冲区，平时直接覆盖写入120x40区域。
  * 这样避免每帧清屏→写内容的两步闪烁。
  */
 static void fb_flush(void)
 {
     if (g_hOut == NULL) return;
 
-    // 检测尺寸变化 → 清空全缓冲区（Win11 Terminal 不接受强制改大小）
+    // 检测尺寸变化 → 清空缓冲区残留
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     if (GetConsoleScreenBufferInfo(g_hOut, &csbi)) {
         if (csbi.dwSize.X != g_prevBufW || csbi.dwSize.Y != g_prevBufH) {
@@ -147,7 +147,7 @@ static void fb_flush(void)
         }
     }
 
-    // 写入120×45帧缓冲（直接覆盖，无闪烁）
+    // 写入120x40帧缓冲（直接覆盖，无闪烁）
     SMALL_RECT region = { 0, 0, CONSOLE_WIDTH - 1, CONSOLE_HEIGHT - 1 };
     COORD bufSize = { CONSOLE_WIDTH, CONSOLE_HEIGHT };
     COORD bufPos  = { 0, 0 };

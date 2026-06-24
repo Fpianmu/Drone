@@ -603,7 +603,7 @@ void ctrl_render_frame(Controller* ctrl, int delta_ms)
 /* ==================== 图案切换 ==================== */
 
 /**
- * @brief 记录当前编队到历史
+
  */
 static void history_add(Controller* ctrl)
 {
