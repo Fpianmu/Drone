@@ -1,216 +1,298 @@
 # 无人机编队灯光秀模拟系统 —— 流程图
 
-## 1. 程序总体流程
+> **图形说明**：圆角矩形 = 起点/终点 | 矩形 = 处理步骤 | 菱形 = 判断分支 | 平行四边形 = 输入/输出
+
+---
+
+## 1. 程序整体运行流程
 
 ```mermaid
 flowchart TD
-    A[程序启动] --> B[graphics_init 初始化控制台]
-    B --> C[controller_create 创建控制器]
-    C --> D[初始化300架无人机]
-    D --> E[创建默认圆形编队]
-    E --> F[graphics_show_welcome 显示欢迎界面]
-    F --> G{主循环}
-    G --> H[ui_poll_input 检查按键]
-    H --> I{有按键?}
-    I -->|是| J[ctrl_handle_command 处理命令]
-    J --> G
-    I -->|否| K{状态==RUNNING?}
-    K -->|是| L[ctrl_update_frame 更新模拟]
-    L --> M[safety_check_all 安全检测]
-    M --> N[ctrl_render_frame 渲染画面]
-    N --> O[Sleep 50ms]
-    O --> G
-    K -->|否| M
-    G -->|is_running=0| P[graphics_close 关闭控制台]
-    P --> Q[controller_destroy 释放资源]
-    Q --> R[程序结束]
+    subgraph 第一阶段["第一阶段：初始化准备"]
+        A([程序启动]) --> B[设置控制台窗口\n120列 × 45行]
+        B --> C[创建300架无人机\n随机散布在表演区]
+        C --> D[排列成默认圆形编队]
+        D --> E[显示欢迎界面\n列出操作说明]
+    end
+
+    E --> F{用户按任意键}
+
+    subgraph 第二阶段["第二阶段：主循环（每秒运行20帧）"]
+        direction TB
+        G[检测键盘输入] --> H{有按键按下?}
+        H -->|有按键| I[执行对应命令\n切换图案 / 调速度 / 换灯光等]
+        H -->|无按键| J{当前是否在\n运行中?}
+        I --> J
+        J -->|是，正在运行| K[更新所有无人机位置\n沿轨迹移动一步]
+        J -->|否，已暂停| L[跳过位置更新]
+        K --> M[安全检测\n检查越界 + 碰撞]
+        L --> M
+        M --> N[渲染一帧画面\n帧缓冲一次性输出到控制台]
+        N --> O[等待50毫秒\n保证帧率稳定]
+        O --> G
+    end
+
+    F --> G
+    G -->|用户按ESC退出| P[恢复控制台设置]
+    P --> Q[释放所有内存资源]
+    Q --> R([程序结束])
 ```
 
-## 2. 主循环渲染流程
+---
+
+## 2. 每一帧画面渲染流程
 
 ```mermaid
-flowchart TD
-    A[ctrl_render_frame] --> B[graphics_clear 清空帧缓冲]
-    B --> C[graphics_draw_title_bar 画标题栏]
-    C --> D[graphics_draw_stage 画表演区边框]
-    D --> E[graphics_draw_all_drones 画所有无人机]
-    E --> F{safety_result 有警告?}
-    F -->|是| G[graphics_draw_warnings 画警告信息]
-    G --> H[graphics_draw_panel 画信息面板]
-    F -->|否| H
-    H --> I[graphics_draw_warn_panel 画警告日志]
-    I --> J[graphics_draw_bottom_bar 画底部状态栏]
-    J --> K[graphics_flush 写入控制台]
+flowchart LR
+    A([开始渲染一帧]) --> B[清空帧缓冲\n全部填为空格]
+    B --> C[画标题栏\n系统名称 + 运行时间]
+    C --> D[画表演区边框\n80×40的舞台]
+    D --> E[画所有无人机\n每架 = 一个彩色字符]
+    E --> F{有安全警告?}
+    F -->|有| G[在表演区内\n标记越界/碰撞的无人机]
+    F -->|无| H[画右侧信息面板\n状态 / 编队 / 灯光 / 操作提示]
+    G --> H
+    H --> I[画底部状态栏\n总数 / 活跃数 / 快捷提示]
+    I --> J[一次性写入控制台\nWriteConsoleOutputW]
+    J --> K([画面显示完成\n零闪烁])
 ```
+
+---
 
 ## 3. 无人机移动控制
 
 ```mermaid
 flowchart TD
-    A[ctrl_update_frame] --> B[traj_update_fleet 批量轨迹更新]
-    B --> C{遍历每架无人机}
-    C --> D{departure_delay > 0?}
-    D -->|是| E[减少延迟, 本帧不动]
-    E --> C
-    D -->|否| F{current_index >= waypoint_count?}
-    F -->|是| G[轨迹结束, 不动]
-    G --> C
-    F -->|否| H[traj_update 单架轨迹更新]
-    H --> I[计算到目标航点的距离dist]
-    I --> J[计算本帧步长 step = speed × Δt]
-    J --> K{dist < 0.5?}
-    K -->|是| L[drone_set_position 吸附到精确目标]
-    L --> M[同步灯光颜色和模式]
-    M --> N[current_index++ 切下一航点]
-    N --> C
-    K -->|否| O{step >= dist?}
-    O -->|是| P[drone_set_position 直接吸附]
-    P --> C
-    O -->|否| Q[drone_move 沿方向向量走一步]
-    Q --> C
-    C --> R{还有无人机未处理?}
-    R -->|是| C
-    R -->|否| S[返回 still_moving]
+    subgraph 每帧执行["对300架无人机逐一执行"]
+        A[取出一架无人机] --> B{这架还没有\n到出发时间?}
+        B -->|还没到| C[等待倒计时减1\n本帧不移动]
+        B -->|时间到了| D{已经到达\n最后一个航点?}
+        D -->|是| E[停在该位置\n不再移动]
+        D -->|否| F[取出下一个目标航点]
+    end
+
+    C --> Z{还有下一架?}
+    E --> Z
+
+    subgraph 移动计算["计算本帧移动距离"]
+        F --> G[计算当前位置\n到目标航点的距离]
+        G --> H[本帧能走的距离\n= 速度 × 时间间隔]
+        H --> I{距离已经很近?\n小于0.5格}
+        I -->|是| J[直接吸附到目标点\n同步灯光颜色]
+        I -->|否| K{本帧步长\n超过剩余距离?}
+        K -->|是| L[直接到达目标]
+        K -->|否| M[沿方向向量\n走一小步]
+    end
+
+    J --> N[切换到下一个航点]
+    L --> N
+    M --> N
+    N --> Z{还有下一架?}
+    Z -->|是| A
+    Z -->|否| O([本帧移动完成])
 ```
+
+---
 
 ## 4. 安全检测流程
 
 ```mermaid
 flowchart TD
-    A[safety_check_all] --> B[safety_check_boundary 边界检测]
-    B --> C{遍历活跃无人机}
-    C --> D{x,y 在安全区内?}
-    D -->|是| C
-    D -->|否| E[记录越界无人机ID]
-    E --> C
-    C --> F[safety_check_distance 间距检测]
-    F --> G{两两计算欧氏距离}
-    G --> H{dist < 安全间距?}
-    H -->|是| I[记录碰撞无人机对]
-    I --> G
-    H -->|否| G
-    G --> J[返回违规总数]
-    J --> K[生成警告日志 warn_log]
-    K --> L[面板显示警告信息]
+    A([每帧开始安全检测]) --> B[检查一：边界检测]
+    B --> C[逐一检查300架无人机]
+    C --> D{X和Y坐标\n都在安全区内?}
+    D -->|在安全区内| E[合格，跳过]
+    D -->|超出边界| F[记录：几号机越界]
+    E --> G{全部检查完?}
+    F --> G
+    G -->|没查完| C
+    G -->|查完| H[检查二：间距检测]
+
+    H --> I[两两配对计算距离\n共约4.5万对]
+    I --> J{距离小于\n安全间距3格?}
+    J -->|足够远| K[安全，跳过]
+    J -->|太近了| L[记录：哪两架靠太近\n自动推开它们]
+    K --> M{全部检查完?}
+    L --> M
+    M -->|没查完| I
+    M -->|查完| N[汇总所有警告]
+    N --> O([输出到画面\n提醒用户注意])
 ```
+
+---
 
 ## 5. 图案切换流程
 
 ```mermaid
 flowchart TD
-    A[用户按 ← → 键] --> B[ctrl_switch_pattern]
-    B --> C[history_add 记录当前编队到历史]
-    C --> D[更新 pattern_index 循环加减]
-    D --> E[pattern_recommend 获取推荐参数]
-    E --> F[formation_destroy 销毁旧编队]
-    F --> G[formation_create 创建新编队]
-    G --> H[pattern_generate 调用图案生成器]
-    H --> I{图案类型}
-    I -->|圆形| J1[gen_circle]
-    I -->|五角星| J2[gen_star]
-    I -->|心形| J3[gen_heart]
-    I -->|...| J4[其他15种]
-    I -->|文字| J5[gen_text GDI渲染]
-    I -->|图片| J6[gen_image BMP加载]
-    J1 --> K[更新活跃无人机数量]
+    A([用户按左方向键或右方向键]) --> B[保存当前编队到历史\n最多记住5次]
+    B --> C[图案编号+1或-1\n循环切换]
+    C --> D[根据图案类型\n自动推荐参数\n无人机数量 + 缩放大小]
+    D --> E[销毁旧编队\n释放内存]
+    E --> F[创建新编队]
+    F --> G[调用图案生成器]
+
+    G --> H{哪种图案?}
+
+    subgraph 几何图案["15种几何图案"]
+        H --> J1[圆形 / 方形 / 三角 / 菱形]
+        H --> J2[五角星 / 五边 / 六边]
+        H --> J3[心形 / 螺旋 / 直线]
+        H --> J4[箭头 / 十字 / 弧形]
+        H --> J5[网格 / 随机散布]
+    end
+
+    H --> J6[文字编队\n输入英文或数字]
+    H --> J7[图片编队\n加载BMP位图]
+
+    J1 --> K[汇总所有目标坐标]
     J2 --> K
     J3 --> K
     J4 --> K
     J5 --> K
     J6 --> K
-    K --> L[traj_from_formation 生成轨迹]
-    L --> M[每架无人机随机delay 0~500ms]
-    M --> N[无人机飞向新编队位置]
+    J7 --> K
+
+    K --> L[激活对应数量的无人机\n多余的暂时休眠]
+    L --> M[为每架无人机生成航线\n从当前位置到新编队位置]
+    M --> N[每架随机延迟0至500ms\n产生依次起飞的视觉效果]
+    N --> O([无人机开始飞向新位置])
 ```
+
+---
 
 ## 6. 灯光特效切换
 
 ```mermaid
-flowchart TD
-    A[用户按 E 键] --> B[light_fx++ 循环切换]
-    B --> C{当前 light_fx}
-    C -->|FX_NONE| D[无特效 保持常亮/闪烁]
-    C -->|FX_WAVE| E[light_wave_effect 波浪依次亮起]
-    C -->|FX_FLOW| F[light_flow 亮灯窗口滑动]
-    C -->|FX_ALTERNATE| G[light_alternate 奇偶交替]
-    C -->|FX_COLOR_FLOW| H[颜色渐变+流水灯]
-    D --> I[重置所有计时器]
+flowchart LR
+    A([按E键]) --> B[特效编号+1\n循环切换]
+    B --> C{当前是哪种特效?}
+
+    C -->|特效1| D[波浪灯\n无人机从左到右依次亮起]
+    C -->|特效2| E[流水灯\n亮灯窗口在编队中滑动]
+    C -->|特效3| F[交替闪烁\n奇偶数无人机交替亮灭]
+    C -->|特效4| G[颜色渐变\n颜色随时间变化\n配合流水效果]
+    C -->|特效0| H[无特效\n保持常亮或手动闪烁]
+
+    D --> I[重置所有计时器\n从初始状态开始]
     E --> I
     F --> I
     G --> I
     H --> I
-    I --> J[下一帧开始生效]
+
+    I --> J([下一帧生效])
 ```
 
-## 7. 文字/图片编队生成
+---
+
+## 7. 文字和图片编队生成
 
 ```mermaid
 flowchart TD
-    A[gen_text 文字编队] --> B[UTF-8 → 宽字符]
-    B --> C[创建12px黑体 GDI字体]
-    C --> D[逐字渲染到14×14位图]
-    D --> E[逐像素读取 GetPixel]
-    E --> F{像素亮度>80?}
-    F -->|是| G[放置无人机]
-    F -->|否| H[跳过]
-    G --> I[所有字处理完]
-    H --> I
-    I --> J[返回无人机坐标数组]
+    subgraph 文字路径["文字编队生成"]
+        A1[输入文字\n如HELLO] --> A2[转换成宽字符\nUTF-8转Unicode]
+        A2 --> A3[用12px黑体\n逐字渲染成位图]
+        A3 --> A4[逐像素读取亮度]
+        A4 --> A5{像素亮度大于80?\n即该位置有笔画?}
+        A5 -->|有笔画| A6[在此位置放一架无人机]
+        A5 -->|空白| A7[跳过该位置]
+        A6 --> A8{所有文字\n处理完了?}
+        A7 --> A8
+        A8 -->|否| A4
+        A8 -->|是| A9([输出无人机坐标数组])
+    end
 
-    K[gen_image 图片编队] --> L[LoadImage 加载BMP]
-    L --> M[StretchBlt 缩放到目标网格]
-    M --> N[逐像素 GetPixel]
-    N --> O{亮度<128?}
-    O -->|是| P[放置无人机 暗像素=图案]
-    O -->|否| Q[跳过 亮像素=背景]
-    P --> R[返回无人机坐标数组]
-    Q --> R
+    subgraph 图片路径["图片编队生成"]
+        B1[加载BMP图片] --> B2[缩放到目标网格大小\n如60×40]
+        B2 --> B3[逐像素读取亮度]
+        B3 --> B4{像素亮度小于128?\n即该位置较暗?}
+        B4 -->|暗像素 = 图案| B5[在此位置放一架无人机]
+        B4 -->|亮像素 = 背景| B6[跳过该位置]
+        B5 --> B7{所有像素\n处理完了?}
+        B6 --> B7
+        B7 -->|否| B3
+        B7 -->|是| B8([输出无人机坐标数组])
+    end
 ```
+
+---
 
 ## 8. 帧缓冲渲染原理
 
 ```mermaid
 flowchart LR
-    A[fb_clear] --> B[CELL数组空格填充]
-    B --> C[各draw函数写入字符+颜色]
-    C --> D[fb_flush]
-    D --> E[WriteConsoleOutputW]
-    E --> F[一次性写入控制台]
-    F --> G[零闪烁画面]
+    A["帧缓冲\n内存中的虚拟屏幕\nCHAR_INFO数组\n45行 × 120列"] --> B[各个绘制函数\n往缓冲里写字符和颜色]
+
+    B --> C[画标题栏]
+    B --> D[画舞台边框]
+    B --> E[画300架无人机]
+    B --> F[画信息面板]
+    B --> G[画警告标记]
+
+    C --> H[全部画完后]
+    D --> H
+    E --> H
+    F --> H
+    G --> H
+
+    H --> I[一次性调用\nWriteConsoleOutputW]
+    I --> J[控制台屏幕\n用户看到完整画面\n零闪烁]
 ```
 
-## 数据流总览
+---
+
+## 9. 系统数据流全景
 
 ```mermaid
 flowchart TD
-    subgraph 输入
-        UI[键盘输入 ui_poll_input]
+    subgraph 输入层["输入层"]
+        UI["键盘输入模块\n检测按键转为操作码"]
     end
-    subgraph 控制
-        CTRL[Controller 主控制器]
+
+    subgraph 控制层["控制层"]
+        CTRL["主控制器\n调度所有模块\n管理运行状态"]
     end
-    subgraph 仿真引擎
-        DRONE[Drone 无人机状态]
-        FORM[Formation 编队生成]
-        TRAJ[Trajectory 轨迹插值]
-        SAFE[Safety 安全检测]
-        LIGHT[Light 灯光特效]
+
+    subgraph 引擎层["仿真引擎"]
+        FORM["编队生成模块\n计算17种图案\n的无人机坐标"]
+        TRAJ["轨迹插值模块\n规划航线\n逐帧移动"]
+        DRONE["无人机实体\n位置 / 高度\n灯光颜色 / 模式"]
+        SAFE["安全检测模块\n越界检查\n碰撞检查 + 避让"]
+        LIGHT["灯光特效模块\n波浪 / 流水\n交替 / 渐变"]
     end
-    subgraph 输出
-        GFX[Graphics 帧缓冲渲染]
-        FILE[File I/O 轨迹存储]
+
+    subgraph 输出层["输出层"]
+        GFX["图形渲染\n帧缓冲到控制台\n120×45字符画面"]
+        FILE["文件存储\n保存和读取\n轨迹数据"]
     end
-    UI --> CTRL
-    CTRL --> DRONE
-    CTRL --> FORM
-    CTRL --> TRAJ
-    CTRL --> SAFE
-    CTRL --> LIGHT
-    DRONE --> GFX
-    FORM --> TRAJ
-    TRAJ --> DRONE
-    SAFE --> GFX
-    LIGHT --> DRONE
-    CTRL --> GFX
-    CTRL --> FILE
+
+    UI -->|按键操作码| CTRL
+    CTRL -->|切换图案| FORM
+    CTRL -->|切换特效| LIGHT
+    CTRL -->|启停控制| TRAJ
+    CTRL -->|触发检测| SAFE
+    CTRL -->|触发渲染| GFX
+    CTRL -->|存档读档| FILE
+
+    FORM -->|目标坐标| TRAJ
+    TRAJ -->|逐帧位置| DRONE
+    LIGHT -->|亮灯指令| DRONE
+    DRONE -->|当前位置+颜色| GFX
+    SAFE -->|警告信息| GFX
 ```
+
+---
+
+## 附录：图案类型速查表
+
+| 编号 | 图案 | 生成方式 | 编号 | 图案 | 生成方式 |
+|------|------|---------|------|------|---------|
+| 1 | 圆形 | 等角圆周分布 | 10 | 直线 | 等间距排列 |
+| 2 | 正方形 | 四边等距分布 | 11 | 箭头 | 箭身70% + 三角箭头30% |
+| 3 | 三角形 | 三边等分 | 12 | 十字 | 竖臂50% + 横臂50% |
+| 4 | 菱形 | 四边等分，对角轴 | 13 | 弧形 | 等角圆弧-150度至150度 |
+| 5 | 五角星 | 外圈+内圈交替 | 14 | 网格 | 行列均匀分布 |
+| 6 | 五边形 | 五边等分 | 15 | 随机 | 均匀随机坐标 |
+| 7 | 六边形 | 六边等分 | 16 | 文字 | 5×7点阵字库 |
+| 8 | 心形 | 参数方程 | 17 | 图片 | BMP像素采样 |
+| 9 | 螺旋 | 阿基米德螺旋 | | | |
