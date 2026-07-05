@@ -1,0 +1,1530 @@
+
+
+
+
+
+
+            软件系统需求分析、系统分析与设计报告
+                   --  --  无人机编队灯光秀模拟系统
+                       课    程：C语言课程设计
+                选    题：18. 无人机编队灯光秀模拟
+                   学    院：机械科学与工程学院
+                  专    业：测控技术与仪器 2025级
+                        指导教师：周凯波 教授
+                 小组成员：  冯格   |   陈七政     
+                     学    号：_________  |  _________
+                          提交日期：2026年6月
+
+                                   目  录
+一、软件系统需求分析
+  1.1 项目背景与选题依据
+  1.2 功能需求分析
+  1.3 非功能需求分析
+  1.4 扩展功能需求
+  1.5 用例分析
+二、系统分析与设计
+  2.1 系统架构设计
+  2.2 项目文件结构
+  2.3 模块依赖关系
+  2.4 系统运行流程
+  2.5 状态机设计
+三、数据结构设计
+  3.1 核心数据结构总览
+  3.2 基础类型定义
+  3.3 枚举类型定义
+  3.4 结构体详细设计
+四、模块详细设计
+  4.1 公共模块（common.h）
+  4.2 无人机实体模块（drone）
+  4.3 灯光控制模块（light）
+  4.4 编队与图案生成模块（formation）
+  4.5 轨迹与插值模块（trajectory）
+  4.6 安全检测模块（safety）
+  4.7 图形渲染模块（graphics）
+  4.8 用户输入模块（ui）
+  4.9 文件读写模块（file_io）
+  4.10 主控制器模块（controller）
+五、程序流程图
+  5.1 系统主循环流程图
+  5.2 图案切换流程图
+  5.3 轨迹插值流程图
+  5.4 安全检测流程图
+  5.5 渲染帧流程图
+六、用户界面设计
+  6.1 屏幕布局设计
+  6.2 操作键映射表
+  6.3 欢迎界面设计
+七、源代码组织与编码规范
+  7.1 源代码文件清单
+  7.2 编码规范
+  7.3 编译与运行
+八、团队工作量分配
+  8.1 工作量统计
+  8.2 分工说明
+九、测试与调试
+  9.1 测试策略
+  9.2 已知问题与解决方案
+十、总结与展望
+  10.1 项目总结
+  10.2 改进方向
+参考文献
+
+一、软件系统需求分析
+1.1 项目背景与选题依据
+无人机编队灯光秀作为一种新兴的表演艺术形式，已在国内外大型活动中广泛应用 --  -- 从春晚到奥运会开幕式，无人机编队以夜空为画布，通过精确的轨迹控制与灯光变幻，呈现出震撼的视觉盛宴。本课程设计选题"无人机编队灯光秀模拟系统"（选题18），要求在C/C++语言环境下，实现一个具备编队初始化、轨迹设计、灯光控制、实时模拟、安全检测和数据回放等核心功能的模拟仿真系统。
+本系统以Windows控制台为渲染平台，采用字符画（CHAR_INFO帧缓冲+WriteConsoleOutputW）方案，无需任何第三方图形库，完全基于标准C/C++和Win32 Console API实现。系统支持500架无人机同时在120x40字符格的舞台上运行，提供15种几何编队图案、文字点阵编队、BMP图片编队、8种灯光颜色、5种动态灯光特效，以及安全检测、历史回溯等完整功能。
+根据课程设计任务书（commands.txt）的要求，本课题需实现的核心功能包括：
+（1）编队初始化：设置无人机数量、初始位置和飞行高度；
+（2）轨迹设计：输入关键坐标点，让无人机按直线自动移动，完成简单队形变换；
+（3）灯光控制：控制无人机灯光开关、颜色切换和闪烁效果；
+（4）实时模拟：在终端动态显示无人机位置和灯光状态；
+（5）安全检测：判断无人机是否越界、距离过近并给出提示；
+（6）数据回放：读取保存的轨迹，重新演示整个灯光秀过程。
+1.2 功能需求分析
+根据课程设计任务书要求和系统分析，功能性需求细分为以下模块：
+                                    编号
+                                 功能模块
+                                 需求描述
+                                   优先级
+F1
+编队初始化
+设置无人机数量(<=500架)、初始位置随机散布、飞行高度设定。系统启动后自动生成默认圆形编队，所有无人机从随机初始位置迁移到编队目标位置。
+高
+F2
+轨迹设计
+输入关键坐标点（航点），无人机按直线自动移动完成队形变换。支持逐帧线性插值，每架无人机独立轨迹，随机出发延迟(0~500ms)避免同时到达造成空中交叉。
+高
+F3
+灯光控制
+控制灯光开关、8种颜色切换（红/绿/蓝/白/黄/青/紫/橙）、常亮/闪烁模式切换。扩展支持5种动态特效：波浪灯、流水灯、交替闪烁、彩虹流水灯、颜色渐变。
+高
+F4
+实时模拟
+在控制台终端动态显示无人机位置（●字符）和灯光状态（颜色属性），120x40字符格表演区，右侧34列信息面板，底部状态栏，20fps帧率。
+高
+F5
+安全检测
+边界越界检测（O(n)遍历）+ 间距碰撞检测（O(n²)两两比较），违规时在画面和面板显示警告信息并记录日志。扩展支持碰撞避让自动推开。
+高
+F6
+数据回放
+保存/读取轨迹数据（二进制格式含魔数校验），重新演示整个灯光秀过程。
+中
+F7
+编队图案
+至少支持若干种队形变换。本系统扩展为15种几何图案（圆/方/三角/菱形/五角星/五边形/六边形/心形/螺旋/直线/箭头/十字/弧形/网格/随机）+ 文字编队 + BMP图片编队。
+中
+F8
+用户交互
+键盘操作，非阻塞输入检测（_kbhit+_getch），实时响应按键切换图案、调节速度、切换颜色等。
+高
+
+1.3 非功能需求分析
+依据课程设计共同要求（commands.txt 第1-8条），系统的非功能性需求如下：
+                                    编号
+                                    类别
+                                 需求描述
+                             本系统实现方式
+NF1
+编程语言
+用C语言/C++编程实现，编译环境建议BC3.1、VC或VS（仅用标准C和其中的图形库）。
+C++11标准，GCC/MinGW-w64编译，仅使用Windows Console API，无第三方图形库依赖。
+NF2
+图形界面
+要求在图形化界面下操作，界面友好，不提倡使用贴图，贴图软件实现的功能必须控制在总代码量的5%以内。
+纯控制台字符画方案：CHAR_INFO帧缓冲 + WriteConsoleOutputW一次性写入，双线框+Unicode字符渲染，零闪烁。无任何贴图依赖。
+NF3
+工程化
+注意程序的结构，必须采用工程化的思想来组织程序。
+10个模块：每个模块.h接口+.cpp实现分离。公共类型集中在common.h。主控制器(Controller)依赖注入所有子系统，无全局变量。
+NF4
+流程图
+要求画流程图（没有流程图的不给评分）。
+本报告第五章提供5张详细流程图。
+NF5
+团队协作
+两人一组，小组个人代码和实现功能分工合理，每人程序不得少于1000行。
+总代码量约4400行（不含注释和空行约3500行），两人分工详见第八章。
+NF6
+报告要求
+每组提供一份报告，内容应包含数据结构设计、程序流程图、程序功能介绍、源代码等，并注明每人的工作量。
+由本报告完整覆盖。
+NF7
+全局变量
+原则上，不得使用全局变量。
+所有状态封装在Controller结构体中，通过指针传递。各模块内部使用static局部变量限定作用域，不暴露全局状态。
+NF8
+可读性与可维护性
+注意程序的可读性和可维护性。
+统一命名规范：snake_case函数名、PascalCase类型名。每个函数有Doxygen风格注释。常量使用#define命名而非魔术数字。
+
+1.4 扩展功能需求
+在课程设计任务书要求的6项基本功能之外，本系统额外实现了以下扩展功能，体现了对系统的深度思考和工程能力：
+                                    编号
+                                 扩展功能
+                                 功能描述
+                                 技术实现
+E1
+15种几何图案
+圆形/正方形/正三角形/菱形/五角星/正五边形/正六边形/心形/螺旋/直线/箭头/十字/弧形/网格/随机散布
+每种图案独立生成器函数，策略模式统一调度
+E2
+文字编队
+英文/数字5x7点阵渲染，支持A-Z、0-9及部分符号
+Windows GDI逐字渲染到12x12像素格-->降采样为二值点阵-->密度自适应映射到无人机
+E3
+BMP图片编队
+加载24位/32位BMP位图，转换为无人机像素阵列
+GDI LoadImage-->StretchBlt缩放-->逐像素采样取暗色点-->映射为无人机位置
+E4
+5种灯光特效
+波浪灯、流水灯、交替闪烁、彩虹流水灯、颜色渐变
+在controller每帧调用对应特效函数，基于时间累计计算亮灯窗口
+E5
+编队历史回溯
+最近5次编队一键回溯
+环形缓冲区存储FormationHistory，H键循环切换
+E6
+动态速度调节
+实时2.0x~40.0x速度调节
+按↑/↓键调节sim_speed倍率，影响每帧有效时间增量
+E7
+碰撞避让
+自动推开间距过近的无人机
+每帧安全检测后对危险接近的无人机施加排斥力
+E8
+警告日志面板
+面板滚动显示最近6条安全警告
+WARN_LOG_SIZE=6的环形日志缓冲区，实时更新
+E9
+随机出发延迟
+每架无人机0~500ms随机出发延迟，避免同时到达
+traj_create时设置departure_delay=rand()%500
+E10
+文字编队密度自适应
+根据可用无人机数量自动选择密度参数
+density=3(9架/像素)或density=1(1架/像素)两档自适应
+
+1.5 用例分析
+系统的主要用户角色为"操作者"（即演示者/评委），以下为核心用例：
+                                 用例编号
+                                 用例名称
+                                   参与者
+                                 前置条件
+                                 基本流程
+UC1
+启动系统
+操作者
+编译生成exe
+1.双击运行 2.自动初始化500架无人机 3.显示欢迎界面 4.按任意键进入主界面
+UC2
+开始/暂停/停止模拟
+操作者
+系统已启动
+1.按S开始 2.无人机从随机位置飞向圆形编队 3.按P暂停 4.按Q停止
+UC3
+切换编队图案
+操作者
+模拟运行中
+1.按<--/-->循环切换15种图案 2.当前编队自动保存到历史 3.激活对应数量无人机 4.生成新轨迹
+UC4
+输入文字编队
+操作者
+模拟运行中
+1.按T 2.控制台提示输入文字(<=5字符) 3.GDI渲染-->降采样-->生成编队
+UC5
+加载BMP图片编队
+操作者
+BMP文件在exe同目录
+1.按I 2.输入文件名 3.系统检查BMP格式-->解析-->生成像素编队
+UC6
+调节灯光
+操作者
+模拟运行中
+1.按C切换8种颜色 2.按B切换常亮/闪烁 3.按E切换5种动态特效
+UC7
+查看安全告警
+操作者
+存在越界/碰撞
+1.表演区下方显示⚠越界/碰撞警告 2.右侧面板滚动显示警告日志
+UC8
+历史回溯
+操作者
+有编队历史
+1.按H 2.循环回溯最近5次编队 3.自动重建编队和轨迹
+UC9
+退出系统
+操作者
+系统运行中
+1.按ESC 2.清理所有资源 3.恢复光标 4.退出
+
+
+二、系统分析与设计
+2.1 系统架构设计
+系统采用"分层模块化"架构，分为四层：
+（1）表示层（Presentation Layer）：graphics模块 + ui模块，负责画面渲染和用户输入处理。graphics模块实现CHAR_INFO帧缓冲和WriteConsoleOutputW方案的完整控制台渲染管线；ui模块通过_kbhit/_getch实现非阻塞键盘输入检测。
+（2）业务逻辑层（Business Logic Layer）：drone模块 + formation模块 + trajectory模块 + light模块 + safety模块，负责无人机实体管理、编队图案生成、航点轨迹插值、灯光效果计算、安全检测等核心仿真逻辑。
+（3）数据持久层（Data Persistence Layer）：file_io模块，负责轨迹数据和编队信息的二进制文件读写，支持数据回放功能。
+（4）控制调度层（Control Layer）：controller模块，作为系统的"指挥中心"，拥有所有子系统的状态，主循环每帧依次执行用户输入检测-->轨迹更新-->灯光特效更新-->安全检测-->渲染-->帧率控制。
+架构设计的核心原则：
+:: 单一职责：每个模块只负责一个明确的功能领域
+:: 依赖倒置：所有模块依赖common.h的抽象类型，不互相依赖
+:: 状态封装：所有运行时状态封装在Controller结构体中，通过指针传递
+:: 无全局变量：严格遵循课程要求，所有数据通过参数传递
+2.2 项目文件结构
+ Drone/
+ ├── main.cpp                  # 程序入口（61行）
+ ├── commands.txt              # 课程设计任务书
+ ├── DESIGN_REPORT.docx          # Markdown版设计报告
+ ├── README.md                 # 项目说明文档
+ # 已移除                  # 编译脚本
+ ├── include/                  # 头文件目录
+ │   ├── common.h              # 公共类型、常量、枚举、结构体、工具宏（280行）
+ │   ├── drone.h               # 无人机实体模块接口
+ │   ├── light.h               # 灯光控制模块接口
+ │   ├── formation.h           # 编队与图案生成模块接口
+ │   ├── trajectory.h          # 轨迹与插值模块接口
+ │   ├── safety.h              # 安全检测模块接口
+ │   ├── graphics.h            # 控制台渲染模块接口
+ │   ├── ui.h                  # 用户输入模块接口
+ │   ├── file_io.h             # 文件读写模块接口
+ │   └── controller.h          # 主控制器模块接口（含状态结构体）
+ └── src/                      # 源文件目录
+     ├── drone.cpp             # 无人机生命周期与状态操作（236行）
+     ├── light.cpp             # 编队级灯光效果（138行）
+     ├── formation.cpp         # 15种图案生成+文字/BMP降采样（914行）
+     ├── trajectory.cpp        # 航点管理与逐帧线性插值（214行）
+     ├── safety.cpp            # 边界/间距检测+碰撞避让（180行）
+     ├── graphics.cpp          # CHAR_INFO帧缓冲+WriteConsoleOutputW（879行）
+     ├── ui.cpp                 # 键盘输入处理（150行）
+     ├── file_io.cpp           # 轨迹数据持久化（105行）
+     └── controller.cpp        # 主循环与模块调度（697行）
+2.3 模块依赖关系
+系统模块间的依赖关系如下（箭头表示"依赖于"）：
+                           ┌─────────────┐
+                           │   main.cpp  │
+                           └──────┬──────┘
+                                  │
+                       ┌──────────▼──────────┐
+                       │   controller.h/cpp  │  <-- 顶层调度器
+                       └──────────┬──────────┘
+                                  │
+           ┌──────────┬───────────┼───────────┬──────────┬──────────┐
+           │          │           │           │          │          │
+      ┌────▼───┐ ┌───▼────┐ ┌───▼────┐ ┌───▼────┐ ┌───▼───┐ ┌───▼───┐
+      │ drone  │ │ light  │ │traject │ │ safety │ │graphics│ │  ui   │
+      │.h/.cpp │ │.h/.cpp │ │.h/.cpp │ │.h/.cpp │ │.h/.cpp│ │.h/.cpp│
+      └────┬───┘ └───┬────┘ └───┬────┘ └───┬────┘ └───┬───┘ └───┬───┘
+           │         │          │          │          │         │
+           └─────────┴──────────┴──────────┴──────────┴─────────┘
+                                  │
+                       ┌──────────▼──────────┐
+                       │     common.h         │  <-- 所有模块共享
+                       └─────────────────────┘
+关键设计：common.h被所有模块包含，提供统一的类型定义（枚举、结构体、常量），确保跨模块类型一致性。Controller模块依赖于所有子系统模块，是唯一的集成点。各子系统之间不直接依赖，通过Controller协调互动。
+2.4 系统运行流程
+从程序启动到退出的完整生命周期如下：
+ 程序入口 main()
+   │
+   ├─ srand(time(NULL))              // 初始化随机种子
+   ├─ controller_create()            // 分配Controller + 创建500架无人机
+   │   ├─ drone_create_fleet(500, 1)  // 批量创建，初始位置暂放舞台中央
+   │   ├─ safety_zone_create()        // 创建安全区域(边界=表演区)
+   │   └─ ctrl_init_default_formation() // 生成默认圆形编队
+   │
+   └─ controller_run(ctrl)           // 进入主循环
+        │
+        ├─ graphics_init()            // 设置控制台120x40、UTF-8、隐藏光标
+        ├─ graphics_show_welcome()     // 欢迎界面（阻塞等待按键）
+        │
+        ├─ 初始位置随机散布              // 找不重叠位置，最多重试50次
+        ├─ traj_from_formation()       // 生成"当前位置-->圆形编队"轨迹
+        │
+        └─ while (is_running)         // ========== 主循环 20fps ==========
+             │
+             ├─ ① ui_poll_input()      // 非阻塞检查按键
+             │    └─ ctrl_handle_command() // 映射按键-->执行操作
+             │
+             ├─ ② (if RUNNING) ctrl_update_frame()
+             │    ├─ traj_update_fleet()  // 500架无人机逐帧移动
+             │    └─ 灯光特效更新          // 波浪/流水/交替/彩虹流水
+             │
+             ├─ ③ safety_check_all()    // 边界O(n)+间距O(n²)检测
+             │    └─ 生成警告日志         // 写入warn_log环形缓冲区
+             │
+             ├─ ④ ctrl_render_frame()  // 渲染整帧
+             │    ├─ fb_clear()         // 清帧缓冲(120x40双重循环)
+             │    ├─ draw_title_bar()   // 标题栏+状态
+             │    ├─ draw_stage()       // ╔══表演区80x36══╗+网格
+             │    ├─ draw_all_drones()  // 逐架绘制●(含闪烁颜色)
+             │    ├─ draw_warnings()    // ⚠越界/碰撞警告
+             │    ├─ draw_panel()       // 右侧34列信息面板
+             │    ├─ draw_warn_panel()  // 警告日志面板
+             │    ├─ draw_bottom_bar()  // 底部状态栏
+             │    └─ fb_flush()         // WriteConsoleOutputW一次性输出
+             │
+             └─ ⑤ Sleep(50ms)          // 帧率控制
+ 
+        └─ graphics_close()            // 恢复光标、定位底部
+2.5 状态机设计
+系统模拟状态由SimState枚举定义，状态转换如下：
+                          S(开始)
+               ┌──────────────────────────────────┐
+               │                                  │
+               ▼                                  │
+       ┌──────────────┐     S(开始)     ┌──────────────┐
+       │              │───────────────-->│              │
+       │  STATE_IDLE  │                │ STATE_RUNNING │
+       │   (待命)     │<--───────────────│   (运行中)    │
+       │              │    Q(停止)     │              │
+       └──────────────┘                └──────┬───────┘
+             ↑                               │
+             │ Q(停止)                 P(暂停)│  P(继续)
+             │                        ╔══════╝
+             │              ┌─────────▼────┐
+             │              │              │
+             └──────────────│ STATE_PAUSED │
+                            │   (暂停)     │
+                            └──────────────┘
+IDLE --> RUNNING: 按S键开始模拟，无人机开始沿轨迹移动。
+RUNNING --> PAUSED: 按P键暂停，画面冻结但安全检测继续。
+PAUSED --> RUNNING: 按P键继续，从中断处恢复。
+RUNNING/PAUSED --> IDLE: 按Q键停止，重置模拟时间为0。
+任意状态 --> 退出: 按ESC键，设置is_running=0退出主循环。
+
+三、数据结构设计
+3.1 核心数据结构总览
+系统数据结构以Controller为核心，包含6类主要数据：无人机实体、编队信息、轨迹数据、安全区域/结果、灯光特效状态、历史记录。整体关系如下：
+ Controller (系统状态容器)
+   │
+   ├─ fleet: Drone*[500] ────--> Drone {id, position(x,y), height,
+   │                                     LightState{color, mode, }, is_active}
+   │
+   ├─ current_formation ────--> Formation {formation_id, name, pattern,
+   │                            center, scale, rotation, targets[500],
+   │                            drone_count, display_text[32]}
+   │
+   ├─ trajectories[500] ────--> Trajectory {WayPoint waypoints[200],
+   │                            waypoint_count, current_index, progress}
+   │                            └─ WayPoint {position, light_color,
+   │                                         light_mode, hold_ms}
+   │
+   ├─ safety_zone ──────────--> SafetyZone {x_min, y_min, x_max, y_max,
+   │                                        min_distance}
+   │
+   ├─ safety_result ────────--> SafetyResult {boundary_violations,
+   │                            boundary_ids[], distance_violations,
+   │                            pair_a[], pair_b[]}
+   │
+   └─ history[5] ───────────--> FormationHistory {pattern, text[32],
+                                                  color, mode}
+3.2 基础类型定义
+二维坐标类型 --  -- 系统中位置计算的基本单位：
+ // 浮点坐标：用于精确的位置计算和轨迹插值
+ typedef struct {
+     float x;
+     float y;
+ } Point2f;
+ 
+ // 整数坐标：用于最终显示位置的取整映射
+ typedef struct {
+     int x;
+     int y;
+ } Point2i;
+设计理由：使用浮点坐标进行轨迹计算，保证平滑移动；仅在最终渲染时四舍五入转为整数坐标，避免累积误差。
+3.3 枚举类型定义
+系统的4类关键枚举类型如下：
+                                 枚举名称
+                                   枚举值
+                                    用途
+LightColor
+COLOR_OFF=0, COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_WHITE, COLOR_YELLOW, COLOR_CYAN, COLOR_PURPLE, COLOR_ORANGE
+定义无人机灯光的9种颜色状态（含熄灭）
+LightMode
+LIGHT_STEADY(常亮), LIGHT_BLINK(闪烁), LIGHT_OFF(关闭)
+定义单架无人机灯光的3种工作模式
+LightFX
+FX_NONE(无特效), FX_WAVE(波浪灯), FX_FLOW(流水灯), FX_ALTERNATE(交替闪烁), FX_COLOR_FLOW(彩虹流水灯)
+定义编队级灯光特效的5种效果
+PatternType
+PAT_NONE, PAT_CIRCLE(圆), PAT_SQUARE(方), PAT_TRIANGLE(三角), PAT_DIAMOND(菱形), PAT_STAR(五角星), PAT_PENTAGON(五边形), PAT_HEXAGON(六边形), PAT_HEART(心形), PAT_SPIRAL(螺旋), PAT_LINE(直线), PAT_ARROW(箭头), PAT_CROSS(十字), PAT_ARC(弧形), PAT_GRID(网格), PAT_RANDOM(随机), PAT_TEXT(文字), PAT_IMAGE(图片)
+定义17种编队图案类型
+SimState
+STATE_IDLE(待命), STATE_RUNNING(运行中), STATE_PAUSED(暂停), STATE_REPLAY(回放)
+定义4种系统模拟状态
+
+3.4 结构体详细设计
+1) Drone  --  无人机实体结构体
+ typedef struct {
+     int         id;                // 唯一编号（1~300）
+     Point2f     position;          // 当前位置（浮点，用于平滑移动）
+     float       height;            // 飞行高度（米，预留扩展）
+     LightState  light;             // 灯光状态（嵌套结构体）
+     int         is_active;         // 是否参与当前编队（0=休眠）
+ } Drone;
+设计要点：position使用浮点坐标保证轨迹平滑；is_active标记让未使用的无人机休眠（不渲染不检测），节省算力。
+2) LightState  --  灯光状态结构体
+ typedef struct {
+     LightColor  color;             // 当前颜色
+     LightMode   mode;              // 常亮/闪烁/熄灭
+     int         blink_interval;    // 闪烁间隔（默认500ms）
+     int         blink_timer;       // 闪烁计时器（累计毫秒）
+     int         is_visible;        // 当前帧是否可见（1=亮 0=灭）
+ } LightState;
+设计要点：闪烁逻辑采用"累计时间-->达到间隔-->翻转可见性"的方案，drone_get_current_color()每帧累加delta_ms，满一个周期自动翻转。
+3) Formation  --  编队结构体
+ typedef struct {
+     int         formation_id;                    // 编队编号
+     char        name[32];                        // 名称（如"心形编队"）
+     PatternType pattern;                         // 图案类型
+     Point2f     center;                          // 图案中心坐标
+     float       scale;                           // 缩放（语义因图案而异）
+     float       rotation_deg;                    // 旋转角度（度）
+     Point2f     targets[MAX_DRONE_COUNT];        // 每架无人机的目标坐标
+     int         drone_count;                     // 实际使用的无人机数
+     char        display_text[32];                // 文字编队的文本内容
+     float       recommended_scale;               // 推荐缩放值
+ } Formation;
+设计要点：targets数组预计算所有目标位置（O(1)查询）；drone_count记录实际需要使用多少架，其余无人机休眠。scale的含义因图案类型而异 --  -- 圆形为半径，正方形为边长，心形为缩放因子等。
+4) Trajectory  --  轨迹结构体
+ typedef struct {
+     WayPoint    waypoints[MAX_WAYPOINTS];   // 航点序列（最多200个）
+     int         waypoint_count;              // 总航点数
+     int         current_index;               // 当前目标航点索引
+     float       total_progress;              // 整体进度 0.0~1.0
+     int         departure_delay;             // 随机出发延迟(ms)
+ } Trajectory;
+ 
+ typedef struct {
+     Point2f     position;         // 航点坐标
+     LightColor  light_color;      // 到达后切换灯光颜色
+     LightMode   light_mode;       // 到达后切换灯光模式
+     int         hold_ms;          // 到达后停留时间(ms)
+ } WayPoint;
+设计要点：每个航点不仅包含位置，还包含到达后的灯光状态切换，实现"飞到位-->变色"的同步。departure_delay实现错峰出发，增加视觉层次感。
+5) SafetyZone / SafetyResult  --  安全结构体
+ typedef struct {
+     int x_min, y_min;     // 表演区左上角（字符格）
+     int x_max, y_max;     // 表演区右下角
+     int min_distance;     // 最小安全间距（默认3格）
+ } SafetyZone;
+ 
+ typedef struct {
+     int boundary_violations;                 // 越界无人机数量
+     int boundary_ids[MAX_DRONE_COUNT];       // 越界无人机ID列表
+     int distance_violations;                 // 间距不足对数量
+     int pair_a[MAX_DRONE_COUNT];             // 危险接近A方ID
+     int pair_b[MAX_DRONE_COUNT];             // 危险接近B方ID
+ } SafetyResult;
+6) Controller  --  系统状态容器（核心结构体）
+Controller结构体是整个系统的"大脑"，封装了全部运行时状态。其详细定义参见controller.h，包含：无人机编队指针数组、当前编队指针、轨迹数组、安全区域/结果、灯光特效计时器、模拟状态/速度/时间、用户选择（图案/颜色/模式/特效）、编队历史环形缓冲区、警告日志环形缓冲区。所有模块通过操作Controller中的字段协同工作，避免全局变量。
+
+四、模块详细设计
+4.1 公共模块（common.h）
+职责：为所有模块提供统一的数据类型、枚举、常量和宏定义。所有头文件均包含common.h，确保全项目类型一致。
+核心常量定义：
+                                   常量名
+                                      值
+                                    说明
+CONSOLE_WIDTH
+120
+控制台总列数（字符格）
+CONSOLE_HEIGHT
+40
+控制台总行数
+STAGE_COLS
+80
+表演区宽度
+STAGE_ROWS
+36
+表演区高度
+PANEL_LEFT
+84
+右侧面板起始列
+PANEL_WIDTH
+34
+面板宽度
+MAX_DRONE_COUNT
+300
+最大无人机数量
+MAX_WAYPOINTS
+200
+单次轨迹最多航点数
+FRAME_INTERVAL_MS
+50
+帧间隔（20fps）
+SAFETY_MIN_DISTANCE
+3
+安全间距下限（字符格）
+BLINK_INTERVAL_MS
+500
+默认闪烁间隔
+HISTORY_SIZE
+5
+历史编队记录数
+WARN_LOG_SIZE
+6
+警告日志最大行数
+
+控制台颜色常量定义（基于Windows Console API前景色属性）：
+ CON_BLACK=0              CON_RED=R|I           CON_GREEN=G|I
+ CON_BLUE=B|I             CON_WHITE=R|G|B|I     CON_YELLOW=R|G|I
+ CON_CYAN=G|B|I           CON_PURPLE=R|B|I      CON_ORANGE=R|G
+ CON_GRAY=R|G|B           CON_DARK_*=无亮度位
+工具宏定义：
+ #define SAFE_FREE(ptr)   do { if(ptr) { free(ptr); (ptr)=NULL; } } while(0)
+ #define CLAMP(v,lo,hi)   (((v)<(lo))?(lo):(((v)>(hi))?(hi):(v)))
+ #define DISTANCE(x1,y1,x2,y2)  sqrt((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2))
+ #define DEG2RAD(deg)     ((deg)*3.14159265f/180.0f)
+ #define RAD2DEG(rad)     ((rad)*180.0f/3.14159265f)
+4.2 无人机实体模块（drone.h / drone.cpp）
+职责：单架无人机的生命周期管理和状态操作。包括创建/销毁、位置设置/移动、灯光颜色/模式控制、闪烁逻辑计算。
+                                   函数名
+                                    参数
+                                   返回值
+                                 功能描述
+drone_create
+id, x, y, height
+Drone*
+在堆上创建无人机，初始白灯常亮
+drone_destroy
+Drone*
+void
+释放单架无人机内存
+drone_create_fleet
+count, start_id
+Drone**
+批量创建无人机编队（最多500架）
+drone_destroy_fleet
+Drone**, count
+void
+批量释放编队所有无人机
+drone_set_position
+drone, x, y, h
+void
+瞬移到指定坐标（初始化用）
+drone_move
+drone, dx, dy, dh
+void
+增量移动（逐帧微调用）
+drone_set_light_color
+drone, color
+void
+设置灯光颜色
+drone_set_light_mode
+drone, mode
+void
+设置灯光模式（常亮/闪烁/关闭）
+drone_set_blink_interval
+drone, ms
+void
+设置闪烁间隔(>=50ms)
+drone_get_current_color
+drone, delta_ms
+ConsoleColor
+获取本帧颜色（含闪烁逻辑）
+
+核心算法 --  -- 闪烁逻辑：
+ ConsoleColor drone_get_current_color(Drone* drone, int delta_ms) {
+     switch (drone->light.mode) {
+     case LIGHT_OFF:    return CON_BLACK;
+     case LIGHT_STEADY: return color_table[drone->light.color];
+     case LIGHT_BLINK:
+         drone->light.blink_timer += delta_ms;
+         if (blink_timer >= blink_interval) {
+             drone->light.is_visible = !drone->light.is_visible;
+             blink_timer -= blink_interval;  // 保留余数，精确计时
+         }
+         return is_visible ? color_table[color] : CON_BLACK;
+     }
+ }
+4.3 灯光控制模块（light.h / light.cpp）
+职责：编队级的灯光效果控制。提供全队统一设置和4种动态灯光特效。
+                                   函数名
+                                    参数
+                                 功能描述
+light_fleet_set_color
+fleet[], count, color
+将整个编队的灯光颜色统一设置为指定颜色
+light_fleet_set_mode
+fleet[], count, mode
+将整个编队的灯光模式统一设置
+light_fleet_set_blink
+fleet[], count, interval_ms
+统一设置编队闪烁间隔
+light_wave_effect
+fleet[], count, color, delay_ms, *elapsed_ms, reset
+波浪点亮:按时间推迟依次亮灯，前N架(fleet[i] i < elapsed/delay)亮灯
+light_alternate
+fleet[], count, color_a, color_b, *phase, interval_ms, *timer_ms
+交替闪烁:奇数偶数两组每500ms交替亮灭
+light_flow
+fleet[], count, color, window_size, *offset, speed_ms, *timer_ms
+流水灯:亮灯窗口(5架)在编队上滑动
+light_color_lerp
+from, to, t
+颜色渐变过渡：t<0.5-->from, t>=0.5-->to（16色阈值切换）
+
+4.4 编队与图案生成模块（formation.h / formation.cpp）
+职责：所有编队图案的生成器。采用策略模式，每种图案由独立的生成器函数实现，通过pattern_generate()统一调度。这是系统中代码量最大的模块（~914行），包含17种图案生成算法。
+（1）图案生成器统一接口：
+ int pattern_generate(PatternType type, Point2f center,
+                      float scale, float rotation_deg,
+                      int drone_count, Point2f out_positions[],
+                      const char* text);
+所有生成器遵循相同约定：输入center/scale/count参数，输出out_positions数组，返回实际填充数。
+（2）15种几何图案生成算法比对：
+                                    图案
+                                 核心算法
+                                 关键参数
+                                 分布特点
+圆形
+等角圆周分布: angle=360°/count*i, x=cx+R·cosθ, y=cy+R·sinθ
+R=scale（半径）
+均匀分布，最常用的编队基础图案
+正方形
+四边等距: 边长=scale, 周长=4xside, 步长=周长/count
+边长=scale
+沿四条边均匀分布
+正三角形
+三边等分: 已知三顶点坐标，各边等分count/3个点
+size=scale
+尖端朝上，顶点在重心上方
+菱形
+四边等分: 对角轴水平/垂直
+对角长=scale
+四边等距排列
+五角星
+10个顶点: 外圈R+内圈r=0.382R（黄金分割比）交替排列
+R=scale
+经典五角星形状，10个顶点等距
+正五边形
+五条边等分: 等角(72°)顶点，各边等分
+外接圆半径=scale
+五边等距
+正六边形
+六条边等分: 等角(60°)顶点，各边等分
+外接圆半径=scale
+六边等距
+心形
+参数方程: x=16sin³t, y=13cost-5cos2t-2cos3t-cos4t
+scale/16
+浪漫心形，等参数间隔分布
+螺旋
+阿基米德螺旋: r=b*θ, θ∈[0,3x2PI]
+scale/最大角度
+从中心向外扩展的螺旋线
+直线
+水平等间距: y=c, x从左到右均匀分布
+长度=scale
+简单直线排列
+箭头
+箭身(70%长度) + 三角形箭头(30%)
+size=scale
+指向右侧的箭头形状
+十字
+竖直臂(50%) + 水平臂(50%)，两臂在中心垂直交叉
+臂长=scale
+对称十字形状
+弧形
+等角圆弧: 起始-150°扫300°，等角度分布
+半径=scale
+半圆弧形排列
+网格
+ceil(sqrt(N))列，等间距排列
+size/(cols+1)
+规整的矩形网格
+随机
+均匀随机坐标: rand()%size - size/2
+散布范围=scale
+随机散布，每次不同
+
+（3）文字编队生成算法：
+文字编队通过Windows GDI将文本渲染到内存位图，然后降采样为二值点阵映射到无人机。流程如下：
+ gen_text(center, char_size, text, count, out[])
+   │
+   ├─ ① 创建内存DC + 兼容位图（12x12 per_char 像素格）
+   ├─ ② 用GDI TextOutW 逐字渲染（LOGFONT字体高度=char_size）
+   ├─ ③ GetPixel 逐像素采样，二值化（暗色=1 亮色=0）
+   ├─ ④ 密度自适应: 可用无人机多 --> density=3（9架/像素簇）
+   │                可用无人机少 --> density=1（1架/像素，骨架）
+   └─ ⑤ 将二值点阵映射为无人机目标坐标 --> 写入out[]
+（4）BMP图片编队生成算法：
+图片编队通过GDI加载BMP位图，缩放后逐像素采样，将暗色像素映射为无人机位置。流程如下：
+ gen_image(center, scale, filename, count, out[])
+   │
+   ├─ ① GDI LoadImage(filename, IMAGE_BITMAP) 加载BMP
+   ├─ ② StretchBlt 缩放到目标尺寸（scale控制）
+   ├─ ③ GetPixel 逐像素采样，取最小值（暗色判定阈值=128）
+   ├─ ④ 非0像素 --> 映射为无人机坐标
+   └─ ⑤ 写入out[]。若暗色点数 > 可用无人机数 --> 等间距采样
+（5）扩展新图案的方法：
+只需三步：（1）编写gen_xxx()生成器函数；（2）在pattern_generate()的switch中添加case；（3）在g_pattern_list数组中注册。体现了良好的开闭原则（对扩展开放，对修改封闭）。
+4.5 轨迹与插值模块（trajectory.h / trajectory.cpp）
+职责：航点管理与逐帧线性插值。每架无人机独立拥有一个Trajectory对象，包含目标航点序列和当前位置信息。
+                                   函数名
+                                 功能描述
+traj_create() / traj_destroy()
+轨迹对象的创建和销毁
+traj_add_waypoint(traj, pos, color, mode, hold_ms)
+向轨迹添加一个航点（含到达后的灯光状态）
+traj_clear(traj)
+清空轨迹的所有航点
+traj_update(traj, drone, speed, delta_ms)
+核心函数：每帧执行线性插值，沿方向向量移动step=spd*dt/1000
+traj_jump_to(traj, drone, index)
+跳转到指定航点（瞬移）
+traj_from_formation(fleet, count, formation, trajs[], spd, color, mode)
+批量创建轨迹：为编队每架无人机生成"当前位置-->编队目标"航点
+traj_update_fleet(fleet, trajs[], count, speed, delta_ms)
+批量更新：对所有活跃无人机执行逐帧轨迹更新
+
+逐帧插值算法核心逻辑：
+ int traj_update(Trajectory* traj, Drone* drone, float speed, int delta_ms) {
+     // 1. 出发延迟检查
+     if (traj->departure_delay > 0) { delay -= delta_ms; return 1; }
+     // 2. 轨迹完成检查
+     if (current_index >= waypoint_count) return 0;
+     // 3. 计算到目标距离
+     float dx = target.x - drone->position.x;
+     float dy = target.y - drone->position.y;
+     float dist = sqrt(dx*dx + dy*dy);
+     float step = speed * delta_ms / 1000.0f;
+     // 4. 到达判定（<0.5格=到达）
+     if (dist < 0.5f) {
+         吸附到精确目标 --> 同步灯光 --> current_index++ --> return;
+     }
+     // 5. 沿方向向量移动
+     drone_move(drone, (dx/dist)*step, (dy/dist)*step, 0);
+     return 1;  // 仍在运动
+ }
+4.6 安全检测模块（safety.h / safety.cpp）
+职责：每帧自动执行边界检测和间距检测，防止无人机飞出表演区域或相互碰撞。
+                                   函数名
+                                   复杂度
+                                 功能描述
+safety_zone_create/destroy
+O(1)
+安全区域的创建和销毁
+safety_point_in_zone
+O(1)
+判断单个点是否在安全区域内
+safety_check_boundary
+O(n)
+边界越界检测：遍历所有活跃无人机，检查x/y是否超出zone范围
+safety_check_distance
+O(n²)
+间距碰撞检测：两两计算距离，<min_distance则记录违规对
+safety_check_all
+O(n²)
+一次性执行边界检测+间距检测+碰撞避让
+safety_avoid_collisions
+O(n²)
+碰撞避让：对间距<min_distance/2的无人机对施加排斥力
+
+碰撞避让算法：
+ void safety_avoid_collisions(fleet[], count, zone, strength) {
+     for i in 0..count-1:
+         for j in i+1..count-1:
+             dist = DISTANCE(fleet[i], fleet[j])
+             if (dist < zone->min_distance/2 && dist > 0.001):
+                 force = (avoid_dist - dist) / avoid_dist * strength
+                 排斥力推开: fleet[i] += (nx*force, ny*force)
+                             fleet[j] -= (nx*force, ny*force)
+ }
+4.7 图形渲染模块（graphics.h / graphics.cpp）
+职责：控制台字符画渲染，采用帧缓冲方案消除闪烁。这是系统中代码量最大的模块（~879行），实现了完整的控制台渲染管线。
+渲染方案 --  -- CHAR_INFO帧缓冲 + WriteConsoleOutputW：
+   ┌──────────────────────────────────────────┐
+   │  Cell g_fb[40][120]                      │  <-- 内存中的虚拟屏幕
+   │  - fb_clear()    : 全部填空格             │
+   │  - fb_put_wchar(): 写单个WCHAR+颜色        │
+   │  - fb_puts()     : 写UTF-8字符串          │
+   │  - fb_printf()   : 格式化写字符串          │
+   │  - fb_flush()    : WriteConsoleOutputW()   │
+   └──────────────────────────────────────────┘
+            │ WriteConsoleOutputW(hOut, g_fb, 120x40, region)
+            ▼
+   ┌──────────────────────────────────────────┐
+   │  控制台缓冲区 (用户可见)                   │
+   └──────────────────────────────────────────┘
+屏幕布局设计：
+ Row 0:  ─────── Drone Light Show Simulator ─── 00:00 [Running] ─ <-- 标题栏
+ Row 1:  ─────── 分隔线 ───────────────────────────────────────────
+ Row 2-37: ╔═══ 表演区域 80x36 ═══╗   ╔══ 信息面板 34列 ══╗
+          ║ ● 无人机编队实时画面  ║   ║ State: ● Running    ║
+          ║   ·  ·  ·  ·  ·     ║   ║ Time: 01:23         ║
+          ║                      ║   ║ Num: 30             ║
+          ╚══════════════════════╝   ║ ...                 ║
+ Row 38-39: (安全告警 + 警告日志)       ╚════════════════════╝
+ Row 39:  ─────── 总:500 活跃:30 ── 提示文字 ──────────── <-- 底栏
+渲染管线函数：
+                                   函数名
+                                 功能描述
+graphics_init/graphics_close
+初始化控制台：UTF-8代码页，设置窗口120x40，隐藏光标，锁定尺寸。关闭时恢复光标。
+graphics_clear/graphics_flush
+清空帧缓冲/将帧缓冲写入控制台。
+graphics_draw_stage
+绘制表演区域：╔═╗双线外框 + 每10格坐标刻度 + 每5格网格参考点· + 中心十字参考线。
+graphics_draw_drone
+绘制单架无人机：浮点坐标映射-->●字符+灯光颜色-->写入帧缓冲。
+graphics_draw_all_drones
+遍历所有活跃无人机，逐架调用drone_get_current_color获取本帧颜色后绘制。
+graphics_draw_warnings
+绘制安全警告：⚠越界警告(红色)+⚠碰撞警告(黄色)，显示违规ID列表。
+graphics_draw_panel
+绘制右侧信息面板：状态/时间/数量/速度/编队信息/灯光设置/安全状态/操作键。全部使用ASCII英文避免中文全角半角边框错位。
+graphics_draw_warn_panel
+绘制警告日志面板：滚动显示最近6条安全警告（环形缓冲区），颜色编码区分类型。
+graphics_draw_title_bar
+绘制标题栏：系统名称(黄色)+时间+模拟状态(绿色)，分隔线装饰。
+graphics_draw_bottom_bar
+绘制底部状态栏：总无人机数+活跃数(绿色)+操作提示(黄色)。
+graphics_show_welcome
+显示欢迎界面：外框+系统标题+学校信息+三列操作说明+按任意键提示。阻塞等待按键后进入主界面。
+
+关键技术 --  -- UTF-8多字节字符处理：fb_puts()函数实现了1-4字节UTF-8字符的自动解析，通过MultiByteToWideChar将UTF-8编码的字符串逐字符转换为WCHAR后写入帧缓冲。支持ASCII、中文字符、Unicode制表符（╔═╗║╚╝●⚠✔）等。
+4.8 用户输入模块（ui.h / ui.cpp）
+职责：键盘输入的非阻塞检测和操作码映射。
+                                    按键
+                                   操作码
+                                    功能
+S / Enter
+UI_CMD_START
+开始模拟
+P / Space
+UI_CMD_PAUSE
+暂停/继续
+Q
+UI_CMD_STOP
+停止模拟
+<--
+UI_CMD_PREV_PATTERN
+上一个编队图案
+-->
+UI_CMD_NEXT_PATTERN
+下一个编队图案
+↑
+UI_CMD_SPEED_UP
+加速（+0.25x）
+↓
+UI_CMD_SPEED_DOWN
+减速（-0.25x）
+C
+UI_CMD_CHANGE_COLOR
+循环切换8种颜色
+B
+UI_CMD_TOGGLE_BLINK
+常亮/闪烁切换
+E
+UI_CMD_FX_NEXT
+循环切换5种灯光特效
+T
+UI_CMD_TEXT_INPUT
+输入文字编队
+I
+UI_CMD_IMAGE
+加载BMP图片编队
+H
+UI_CMD_HISTORY
+历史编队回溯
+ESC
+UI_CMD_EXIT
+退出程序
+
+实现方案：非阻塞_kbhit()检测是否有按键 + _getch()读取键值。扩展键（方向键等）使用两字节编码（0xE0前缀），通过第二字节区分↑↓<---->。
+4.9 文件读写模块（file_io.h / file_io.cpp）
+职责：轨迹数据和编队信息的二进制文件持久化。
+二进制文件格式设计：
+ Header (16B):
+   magic    : 4B  ("DRON" = 0x44524F4E)  // 魔数校验
+   count    : 4B  (无人机数量)
+   frames   : 4B  (总帧数)
+   interval : 4B  (帧间隔ms)
+ 
+ Frame 0, 1, ... N:
+   drone[i].x     : 4B (float)
+   drone[i].y     : 4B (float)
+   drone[i].color : 1B (LightColor enum)
+   ... (共count架无人机)
+魔数校验机制：读取文件时首先检查magic是否为0x44524F4E，防止非轨迹文件被误读。
+4.10 主控制器模块（controller.h / controller.cpp）
+职责：系统顶层调度器，所有子系统的"粘合剂"。拥有全部状态，协调各模块完成完整的仿真循环。
+Controller结构体字段清单（全部状态封装在此，无全局变量）：
+                                 字段类别
+                                   字段名
+                                    类型
+                                    说明
+无人机
+fleet[300]
+Drone*
+所有无人机的指针数组（池）
+无人机
+drone_count
+int
+池中无人机总数（默认300）
+编队
+current_formation
+Formation*
+当前使用的编队
+编队
+pattern_index
+int
+当前图案在列表中的索引
+轨迹
+trajectories[500]
+Trajectory*
+每架无人机的独立轨迹
+安全
+safety_zone
+SafetyZone*
+安全区域配置
+安全
+safety_result
+SafetyResult
+每帧安全检测结果
+安全
+warn_log[6][256]
+char
+警告日志环形缓冲区
+灯光
+light_fx/各项计时器
+多种
+5种特效的状态/计时器/相位
+模拟
+sim_state
+SimState
+当前模拟状态
+模拟
+sim_elapsed_ms
+int
+模拟已运行时间(ms)
+模拟
+sim_speed
+float
+速度倍率(1.0=正常)
+选择
+selected_pattern/color/mode
+多种
+用户当前选择
+历史
+history[5]
+FormationHistory
+最近5次编队记录
+
+命令处理核心逻辑 --  -- 以图案切换为例：
+ ctrl_switch_pattern(ctrl, direction) {
+     ① history_add(ctrl)                    // 保存当前编队
+     ② pattern_index = (idx + dir) % COUNT  // 循环更新索引
+     ③ pattern_recommend()                  // 获取推荐参数
+     ④ formation_destroy(old)               // 销毁旧编队
+     ⑤ formation_create(new)                // 创建新编队
+     ⑥ 激活对应数量无人机 / 休眠多余        // 控制活跃数
+     ⑦ traj_from_formation()                // 生成迁移轨迹
+ }
+
+五、程序流程图
+以下流程图展示了系统核心流程。根据课程设计要求（"要求画流程图，没有流程图的不给评分"），本系统提供了5张详细流程图。
+5.1 系统主循环流程图
+主循环每帧（50ms ≈ 20fps）依次执行5个步骤：用户输入-->轨迹更新-->安全检测-->渲染-->帧率控制。
+ ┌──────────────────────────────────────────────────────────────────┐
+ │                      程序入口 main()                             │
+ │   srand() --> controller_create() --> controller_run()             │
+ └──────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+ ┌──────────────────────────────────────────────────────────────────┐
+ │                    graphics_init()                               │
+ │   UTF-8 CP --> 120x40窗口 --> 隐藏光标 --> 锁定窗口尺寸               │
+ └──────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+ ┌──────────────────────────────────────────────────────────────────┐
+ │                graphics_show_welcome()                           │
+ │   欢迎界面（外框 + 标题 + 学校信息 + 三列按键说明）              │
+ │   阻塞等待按任意键...                                            │
+ └──────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+ ┌──────────────────────────────────────────────────────────────────┐
+ │          初始化位置 & 轨迹                                       │
+ │   随机散布（防重叠重试50次） --> 圆形编队 --> traj_from_formation()  │
+ └──────────────────────────────────────────────────────────────────┘
+                               │
+               ┌───────────────┴───────────────┐
+               │     while (is_running)         │ <-- 主循环 (20fps)
+               └───────────────┬───────────────┘
+                               │
+         ┌─────────────────────┼─────────────────────┐
+         ▼                     ▼                     ▼
+ ┌───────────────┐   ┌─────────────────┐   ┌─────────────────┐
+ │ ① 用户输入    │   │ ② 模拟更新      │   │ ③ 安全检测      │
+ │ _kbhit()?     │   │ STATE_RUNNING?  │   │ 边界检测 O(n)   │
+ │  ├─No --> Skip  │   │  ├─ Yes:        │   │ 间距检测 O(n²)  │
+ │  └─Yes:       │   │  │ traj_update   │   │ 碰撞避让 O(n²)  │
+ │   _getch()    │   │  │ _fleet(300)   │   │ 生成警告日志    │
+ │   映射UICmd   │   │  │ 灯光特效计算  │   │                 │
+ │   -->handle     │   │  └─ No: 跳过    │   │                 │
+ └───────────────┘   └─────────────────┘   └─────────────────┘
+         │                     │                     │
+         └─────────────────────┼─────────────────────┘
+                               ▼
+ ┌──────────────────────────────────────────────────────────────────┐
+ │                    ④ ctrl_render_frame()                         │
+ │  fb_clear --> title_bar --> stage --> drones --> warnings --> panel       │
+ │  --> warn_panel --> bottom_bar --> fb_flush (WriteConsoleOutputW)     │
+ └──────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+                     ┌─────────────────┐
+                     │ ⑤ Sleep(50ms)   │
+                     └─────────────────┘
+                               │
+                               ▼
+                     循环回到 while 顶部
+ 
+                      (用户按 ESC)
+                               ▼
+ ┌──────────────────────────────────────────────────────────────────┐
+ │  graphics_close() --> controller_destroy() --> return 0              │
+ └──────────────────────────────────────────────────────────────────┘
+5.2 图案切换流程图
+ 用户按 <-- / -->
+     │
+     ▼
+ ctrl_switch_pattern(ctrl, direction)
+     │
+     ├─ ① history_add(ctrl)             <-- 保存当前编队到历史
+     │     ├─ 移动旧记录(环形缓冲区)
+     │     └─ 记录当前pattern/text/color/mode
+     │
+     ├─ ② pattern_index += direction    <-- 更新图案索引（循环）
+     │     idx < 0 --> idx = PATTERN_COUNT - 1
+     │     idx >= COUNT --> idx = 0
+     │
+     ├─ ③ pattern_recommend()           <-- 获取推荐参数
+     │     type + text_len --> out_count + out_scale
+     │
+     ├─ ④ formation_destroy(old)        <-- 销毁旧编队
+     │
+     ├─ ⑤ formation_create(new)         <-- 创建新编队
+     │     └--> pattern_generate()
+     │         └--> gen_xxx(center, scale, count, out[])
+     │
+     ├─ ⑥ 激活/休眠无人机              <-- 匹配编队所需数量
+     │     for i in 0..drone_count:
+     │       fleet[i]->is_active = (i < use_count)
+     │
+     └─ ⑦ traj_from_formation()        <-- 生成迁移轨迹
+           为每架活跃无人机创建
+           当前位置 --> 新编队目标的航点
+5.3 轨迹插值流程图
+ traj_update(traj, drone, speed, delta_ms)  每帧调用
+     │
+     ├─ departure_delay > 0?
+     │   └─ Yes --> delay -= delta_ms --> return 1  <-- 等待出发
+     │
+     ├─ current_index >= waypoint_count?
+     │   └─ Yes --> return 0   <-- 轨迹已结束
+     │
+     ├─ 计算到目标航点的距离
+     │   dx = target.x - drone.x
+     │   dy = target.y - drone.y
+     │   dist = sqrt(dx² + dy²)
+     │   step = speed x delta_ms / 1000.0
+     │
+     ├─ dist < 0.5?   <-- 到达判定
+     │   │
+     │   └─ Yes:
+     │       ├─ 吸附到目标精确位置（消除浮点累积误差）
+     │       ├─ 同步灯光颜色和模式
+     │       ├─ current_index++   <-- 切换到下一航点
+     │       ├─ 更新 total_progress = index / count
+     │       └─ 还有航点? --> return 1  : return 0
+     │
+     └─ dist >= 0.5:   <-- 未到达，沿方向移动
+         │
+         ├─ step >= dist?   <-- 步长超过剩余距离
+         │   └─ Yes --> 直接吸附到目标（防过冲）
+         │
+         └─ step < dist:
+             ├─ 计算单位方向向量: nx=dx/dist, ny=dy/dist
+             ├─ drone_move(nxxstep, nyxstep, 0)
+             └─ return 1   <-- 仍在运动
+5.4 安全检测流程图
+ safety_check_all(fleet[], count, zone, *result)  每帧调用
+     │
+     ├─ ① 清空上次检测结果
+     │     safety_result_clear(result)
+     │
+     ├─ ② 边界越界检测 O(n)
+     │     for i in 0..count-1:
+     │       if !is_active --> skip
+     │       x = fleet[i]->position.x
+     │       y = fleet[i]->position.y
+     │       if x < zone.x_min OR x > zone.x_max
+     │       OR y < zone.y_min OR y > zone.y_max:
+     │         --> 记录越界: boundary_ids[p++] = fleet[i]->id
+     │           boundary_violations++
+     │
+     ├─ ③ 间距碰撞检测 O(n²)
+     │     for i in 0..count-1:
+     │       if !is_active --> skip
+     │       for j in i+1..count-1:
+     │         if !is_active --> skip
+     │         dist = DISTANCE(fleet[i], fleet[j])
+     │         if dist < zone.min_distance:
+     │           --> 记录碰撞对: pair_a[q]=i, pair_b[q]=j
+     │              distance_violations++
+     │
+     └─ ④ 碰撞避让 O(n²)
+           for i in 0..count-1:
+             for j in i+1..count-1:
+               dist = DISTANCE(fleet[i], fleet[j])
+               if dist < min_distance/2 && dist > 0.001:
+                 force = (avoid_dist-dist)/avoid_dist x strength
+                 方向: nx=dx/dist, ny=dy/dist
+                 fleet[i] += (nxxforce, nyxforce)
+                 fleet[j] -= (nxxforce, nyxforce)
+5.5 渲染帧流程图
+ ctrl_render_frame(ctrl, delta_ms)  每帧调用（始终执行，不受暂停影响）
+     │
+     ├─ ① graphics_clear()
+     │     └--> fb_clear(): 双重循环 --> 全填 L" " + CON_WHITE
+     │
+     ├─ ② graphics_draw_title_bar()
+     │     └--> Row 0: ─────全宽横线─────
+     │         + "Drone Light Show Simulator" (黄色)
+     │         + "MM:SS [Running/Paused/Idle]" (绿色)
+     │         Row 1: ─────全宽分隔线─────
+     │
+     ├─ ③ graphics_draw_stage()
+     │     └--> ╔═══════════ 表演区 80x36 ═══════════╗
+     │         + 每10格坐标刻度 ╦╩╠╣
+     │         + 每5格网格参考点 · (灰色)
+     │         + 中心十字参考线 ┄(水平)+┆(垂直)
+     │
+     ├─ ④ graphics_draw_all_drones()
+     │     └--> for i in 0..drone_count:
+     │           color = drone_get_current_color(fleet[i], delta_ms)
+     │           x = STAGE_LEFT + (int)(pos.x + 0.5)
+     │           y = STAGE_TOP  + (int)(pos.y + 0.5)
+     │           fb_put_wchar(x, y, color, L"●")
+     │
+     ├─ ⑤ graphics_draw_warnings()  <-- 如存在违规
+     │     └--> ⚠ Boundary: D#5 D#8 ...共30架 (红色)
+     │         ⚠ Collision: #3-#7 #12-#15 ... (黄色)
+     │
+     ├─ ⑥ graphics_draw_panel()  <-- 右侧面板 34列
+     │     └--> State ○●▮ + Time + Num + Speed
+     │         + Formation name + Pattern + Light(Color+Mode)
+     │         + Safety(✔ Safe / ⚠ WARNING)
+     │         + Keys(5行操作提示)
+     │
+     ├─ ⑦ graphics_draw_warn_panel()
+     │     └--> 面板下方滚动显示最近6条警告日志
+     │
+     ├─ ⑧ graphics_draw_bottom_bar()
+     │     └--> ───── "总:500" + "活跃:30" + 提示文字 ─────
+     │
+     └─ ⑨ graphics_flush()
+           └--> fb_flush(): 检测尺寸变化 --> WriteConsoleOutputW
+               (CHAR_INFO*)g_fb 一次性写入120x40区域
+               --> 零闪烁、零撕裂
+
+六、用户界面设计
+6.1 屏幕布局设计
+ ┌──────────────────────────────────────────────────────────────────┐
+ │   Drone Light Show Simulator                    00:00 [Running]  │ Row 0
+ ├──────────────────────────────────────────────────────────────────┤ Row 1
+ │ ╔══════════════════════════════════════╗  ╔════════════════════╗ │
+ │ ║         表演区域 Stage 80x36        ║  ║ Drone Show         ║ │ Row 2
+ │ ║                                    ║  ╠════════════════════╣ │
+ │ ║       ·  ·  ·  ·  ·  ·  ·         ║  ║ State ● Running   ║ │
+ │ ║                                    ║  ║ Time  01:23        ║ │
+ │ ║    ·     ●●●●●      ·             ║  ║ Num   30           ║ │
+ │ ║         ●●○○●                     ║  ║ Speed 1.00x        ║ │
+ │ ║    ·     ●●●●●      ·             ║  ╠════════════════════╣ │
+ │ ║                                    ║  ║ Formation         ║ │
+ │ ║       ·  ·  ·  ·  ·  ·  ·         ║  ║ Circle            ║ │
+ │ ║                                    ║  ║ Pat Circle         ║ │
+ │ ╚════════════════════════════════════╝  ╠════════════════════╣ │
+ │                                        ║ Light              ║ │
+ │ ⚠ Boundary: D#5 D#8 D#12 ... 共30架    ║ Color ● 白色       ║ │
+ │ ⚠ Collision: #3-#7 #12-#15 ...         ║ Mode  On           ║ │
+ │                                        ╠════════════════════╣ │
+ │                                        ║ Safety             ║ │
+ │                                        ║ ✔ Safe             ║ │
+ │                                        ╠════════════════════╣ │
+ │                                        ║ Keys               ║ │
+ │                                        ║ S Start  P Pause   ║ │
+ │                                        ║ ...                ║ │ Row 37
+ ├──────────────────────────────────────────────────────────────────┤ Row 38
+ │ 总:500  活跃:30        S:Run P:Pause ... T:Text I:Img H:Hist    │ Row 39
+ └──────────────────────────────────────────────────────────────────┘
+6.2 操作键映射表
+                                    按键
+                                    功能
+                                    说明
+S / Enter
+开始模拟
+IDLE/PAUSED --> RUNNING
+P / Space
+暂停/继续
+RUNNING <--> PAUSED
+Q
+停止模拟
+--> IDLE, 重置时间
+<-- / -->
+切换图案
+循环切换15种几何图案+文字+图片（共17种）
+↑ / ↓
+调节速度
+每次+-0.25x, 范围: 0.2x ~ 4.0x
+C
+切换颜色
+循环: 红-->绿-->蓝-->白-->黄-->青-->紫-->橙
+B
+闪烁开关
+常亮 <--> 闪烁（500ms间隔）
+E
+切换特效
+循环: 无-->波浪-->流水-->交替-->彩虹流水
+T
+文字编队
+输入<=5字符的文字, GDI渲染-->降采样-->编队
+I
+图片编队
+输入BMP文件名, 解析-->采样-->像素编队
+H
+历史回溯
+循环回溯最近5次编队记录
+ESC
+退出程序
+清理所有资源后退出
+
+6.3 欢迎界面设计
+欢迎界面在程序启动时显示，包含以下元素：
+:: 顶部外框（双线制表符╔═╗）
+:: 系统标题：✈ ✈ ✈ Drone Light Show Simulator ✈ ✈ ✈
+:: 英文副标题：Drone Formation Light Show Simulator
+:: 学校信息：HUST · MSE · Instrumentation / C Course Design 2025
+:: 三列操作说明（Sim Control / Formation / Lighting）
+:: 底部闪烁提示：<< Press Any Key >>
+:: 选题信息：Project 18: Drone Light Show Simulator
+:: 等待用户按任意键后进入主界面
+
+七、源代码组织与编码规范
+7.1 源代码文件清单
+                                   文件名
+                                    类型
+                         行数（含注释/空行）
+                                 功能概述
+main.cpp
+入口
+61
+程序入口，初始化随机种子，创建控制器，进入主循环
+common.h
+头文件
+280
+公共类型、枚举（5个）、结构体（12个）、常量（18个）、宏（5个）
+drone.h / drone.cpp
+模块
+70+236=306
+无人机实体：生命周期、位置操作、灯光控制、闪烁逻辑
+light.h / light.cpp
+模块
+40+138=178
+灯光控制：编队级设置、4种动态特效
+formation.h / formation.cpp
+模块
+80+914=994
+编队生成器：15种几何图案+文字+图片的生成算法
+trajectory.h / trajectory.cpp
+模块
+40+214=254
+轨迹插值：航点管理、线性插值、批量操作
+safety.h / safety.cpp
+模块
+40+180=220
+安全检测：边界检测、间距检测、碰撞避让
+graphics.h / graphics.cpp
+模块
+90+879=969
+控制台渲染：帧缓冲、15个绘制函数、欢迎界面
+ui.h / ui.cpp
+模块
+40+150=190
+用户输入：非阻塞键盘检测、UICmd枚举映射
+file_io.h / file_io.cpp
+模块
+40+105=145
+文件IO：二进制轨迹文件读写、魔数校验
+controller.h / controller.cpp
+模块
+102+697=799
+主控制器：状态容器、主循环、命令处理、帧更新/渲染
+总计
+ -- 
+~4400
+完整无人机编队灯光秀模拟系统
+
+7.2 编码规范
+本系统严格遵循统一的编码规范，确保代码可读性和可维护性：
+（1）命名规范：函数名使用snake_case（如drone_create、traj_update_fleet）；类型名（结构体/枚举）使用PascalCase（如Drone、LightColor、SafetyResult）；常量使用UPPER_SNAKE_CASE（如MAX_DRONE_COUNT、SAFETY_MIN_DISTANCE）；宏函数使用UPPER_SNAKE_CASE。
+（2）注释规范：每个文件头部有@file/@brief说明；每个函数有@brief/@param/@return Doxygen风格注释；关键算法有详细的行内注释解释原理；常量定义有注释说明用途和单位。
+（3）代码组织：头文件使用#ifndef/#define/#endif防重复包含；每个.h文件对应于一个.cpp实现；函数声明按"生命周期-->操作-->查询-->工具"分组；结构体字段按"标识-->位置-->状态-->标记"排序。
+（4）内存管理：所有动态分配有对应的释放函数；使用SAFE_FREE宏防止悬挂指针和double-free；批量创建失败时回滚已分配的资源（如drone_create_fleet）；使用堆分配+指针传递代替全局变量。
+7.3 编译与运行
+ # 使用build.bat编译
+ make
+ 
+ # 或手动编译
+ g++ -std=c++11 -Wall -o drone_show.exe \
+     main.cpp \
+     src/drone.cpp src/light.cpp src/formation.cpp \
+     src/trajectory.cpp src/safety.cpp \
+     src/graphics.cpp src/ui.cpp src/file_io.cpp \
+     src/controller.cpp \
+     -I include -lm -lgdi32
+ 
+ # 运行
+ ./drone_show.exe
+编译环境要求：GCC 5.0+ / MinGW-w64，Windows 10/11操作系统（需要Win32 Console API）。无任何第三方库依赖。编译链接需要-lgdi32（formation.cpp中使用GDI渲染文字和加载BMP图片）。
+
+八、团队工作量分配
+8.1 工作量统计
+                                    模块
+                              估计代码行数
+                                 负责成员
+                                    难度
+common.h（公共类型与常量）
+~280行
+共同维护
+低
+drone（无人机实体）
+~306行
+冯格
+中
+light（灯光控制）
+~178行
+冯格
+中
+formation（编队图案生成）
+~994行
+冯格
+高
+trajectory（轨迹插值）
+~254行
+冯格
+中
+safety（安全检测）
+~220行
+冯格
+中
+graphics（图形渲染）
+~969行
+陈七政
+高
+ui（用户输入）
+~190行
+陈七政
+低
+file_io（文件读写）
+~145行
+陈七政
+低
+controller（主控制器）
+~799行
+陈七政
+高
+main.cpp（程序入口）
+~61行
+共同
+低
+合计
+~4400行
+两人
+ -- 
+
+8.2 分工说明
+冯格（核心仿真引擎）：负责无人机实体（drone）、灯光控制（light）、编队图案生成（formation）、轨迹插值（trajectory）、安全检测（safety）五个模块的设计与实现。总计约1952行代码。主要技术难点：15种几何图案的生成算法、5x7点阵文字编队、BMP图片降采样、逐帧线性插值轨迹引擎、O(n²)碰撞检测与避让。
+陈七政（图形渲染与交互）：负责图形渲染（graphics）、用户输入（ui）、文件读写（file_io）、主控制器（controller）四个模块的设计与实现。总计约2103行代码。主要技术难点：CHAR_INFO帧缓冲+WriteConsoleOutputW双缓冲渲染方案、UTF-8多字节字符解析、120x40屏幕布局设计、主循环帧率控制、命令处理状态机、编队历史环形缓冲区。
+共同工作：公共头文件（common.h）的类型定义和维护、程序入口（main.cpp）、编译脚本（build.bat）、本报告撰写。
+协作机制：common.h定义统一接口，controller.h定义状态容器结构体，两人各自开发独立模块，通过controller集成联调。所有类型由common.h统一，避免了接口不匹配问题。
+
+九、测试与调试
+9.1 测试策略
+本系统在开发过程中采用了分层测试策略：
+（1）单元测试：每个模块开发完成后独立测试。例如：测试15种图案生成器的输出坐标是否在合理范围内；测试轨迹插值能否正确到达目标航点；测试闪烁逻辑的占空比是否为50%。
+（2）集成测试：将相关模块组合测试。例如：formation+trajectory联合测试编队切换是否流畅；controller+graphics联合测试画面渲染是否正常。
+（3）系统测试：完整运行流程测试。包括：启动-->欢迎界面-->按S开始-->切换所有17种图案-->切换所有8种颜色-->测试所有5种灯光特效-->调节速度-->文字编队-->图片编队-->历史回溯-->安全检测触发-->按ESC退出。
+（4）边界测试：无人机数量边界（0架、1架、500架、超500架）；图案参数边界（0缩放、负数缩放、超大缩放）；轨迹边界（0航点、200航点）；安全检测边界（无人机在边界线上、两机完全重叠）。
+9.2 已知问题与解决方案
+                                    问题
+                                    现象
+                                    原因
+                                 解决方案
+控制台闪烁
+画面频繁闪烁刷新
+逐行printf导致屏幕不断刷新
+采用CHAR_INFO帧缓冲+WriteConsoleOutputW一次性写入
+中文边框错位
+面板边框不对齐
+中文全角字符(占2列)与半角(占1列)混合导致列计算错误
+面板全部使用ASCII英文描述
+文字编队中文不支持
+输入中文后编队为空
+GDI TextOutW中文渲染时字体高度计算不准确
+改用英文+数字方案，中文标注为后续支持
+BMP加载失败
+无法打开BMP文件
+当前工作目录可能不是exe所在目录
+增加当前目录+绝对路径双重尝试机制
+无人机重叠
+多架无人机显示在同一位置
+图案生成器生成的目标坐标可能重合
+编队创建后检测重合坐标并微调偏移(0.5格)
+控制台缩放崩溃
+用户拖拽窗口大小导致显示异常
+Windows Terminal可缩放，但缓冲区尺寸不匹配
+锁定窗口尺寸，禁用最大化按钮和可缩放边框
+文本编队密度失衡
+文字编队要么太稀疏要么超出数量限制
+可用无人机数量与文字复杂度不匹配
+实现密度自适应：density=3(9架/像素簇)或density=1(骨架)两档
+
+
+十、总结与展望
+10.1 项目总结
+本课程设计项目"无人机编队灯光秀模拟系统"严格按照课程设计任务书（commands.txt）要求，完成了全部6项核心功能需求和10项扩展功能。系统以C++11语言实现，编译环境为GCC/MinGW-w64，仅使用Windows Console API，无任何第三方图形库依赖，完全符合课程"仅用标准C和其中的图形库"的要求。
+系统实现了以下主要技术成果：
+（1）完整的控制台渲染管线：基于CHAR_INFO帧缓冲+WriteConsoleOutputW的双缓冲方案，实现120x40字符格的零闪烁实时渲染，20fps稳定帧率。
+（2）17种编队图案生成器：15种几何图案（圆/方/三角/菱形/五角星/五边形/六边形/心形/螺旋/直线/箭头/十字/弧形/网格/随机）+ 文字点阵编队（GDI渲染+降采样）+ BMP图片编队（GDI加载+像素采样），采用策略模式统一调度。
+（3）精确的轨迹插值引擎：逐帧线性插值，浮点坐标保证平滑移动，到达判定阈值0.5格，随机出发延迟避免空中交叉。
+（4）完善的安全检测系统：实时边界越界检测（O(n)）+ 间距碰撞检测（O(n²)）+ 碰撞避让排斥力，违规信息在画面和日志面板双重反馈。
+（5）丰富的灯光效果：8种颜色 + 常亮/闪烁模式 + 5种动态特效（波浪/流水/交替/彩虹流水/颜色渐变）。
+（6）严格的工程化实践：10个模块分离，头文件/源文件分离，统一编码规范，无全局变量，内存安全释放。
+10.2 改进方向
+尽管系统已实现了丰富的功能，但仍有以下可改进的方向：
+（1）中文文字编队支持：当前文字编队仅支持英文和数字（A-Z、0-9），中文渲染因GDI字体高度计算问题暂不支持。后续可通过调整字体度量方式或使用Uniscribe布局引擎来支持中文。
+（2）数据回放功能完善：file_io模块已定义了二进制文件格式框架，但加载和回放功能仍标注为TODO待实现。
+（3）3D视角支持：当前系统为2D俯视图视角，可扩展为伪3D等距视角，增加高度维度的视觉呈现。
+（4）更复杂的轨迹规划：当前轨迹仅为直线插值，可扩展为贝塞尔曲线、B样条等平滑轨迹，使队形变换更流畅优美。
+（5）音频同步：可增加BGM播放与灯光秀动作的时间轴同步，实现完整的声光表演。
+（6）网络同步：可扩展为多机同步显示，模拟大规模无人机编队表演的控制系统。
+
+参考文献
+[1] 王士元. C高级实用程序设计. 北京: 清华大学出版社, 1996.
+[2] 周纯杰, 刘正林等. 标准C语言程序及应用. 武汉: 华中科技大学出版社, 2005.
+[3] 周纯杰, 何顶新等. 程序设计教程 --  -- 用C/C++语言编程. 北京: 机械工业出版社, 2016.
+[4] 姚远. 高级C语言程序设计技巧与实例. 北京: 机械工业出版社, 1995.
+[5] 陈清华, 朱红. C语言课程设计. 南京: 东南大学出版社, 2003.
+[6] 谭浩强. C语言程序设计. 北京: 清华大学出版社, 2000.
+[7] Microsoft Docs. Windows Console API Reference. https://docs.microsoft.com/en-us/windows/console/.
+[8] Microsoft Docs. WriteConsoleOutput function. https://docs.microsoft.com/en-us/windows/console/writeconsoleoutput.
+[9] Microsoft Docs. CHAR_INFO structure. https://docs.microsoft.com/en-us/windows/console/char-info-str.
+[10] Donald E. Knuth. The Art of Computer Programming, Vol. 1: Fundamental Algorithms. Addison-Wesley, 1997.
+[11] Robert C. Martin. Clean Code: A Handbook of Agile Software Craftsmanship. Prentice Hall, 2008.
+[12] Erich Gamma, Richard Helm, Ralph Johnson, John Vlissides. Design Patterns: Elements of Reusable Object-Oriented Software. Addison-Wesley, 1994.
